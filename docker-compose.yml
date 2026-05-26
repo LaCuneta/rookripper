@@ -1,0 +1,15 @@
+services:
+  rookripper:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3999:3000"
+    volumes:
+      - rookripper_data:/app/data
+    environment:
+      # Set this to the URL you access the app from (required by SvelteKit)
+      ORIGIN: http://localhost:3999
+      DATA_DIR: /app/data
+
+volumes:
+  rookripper_data:
