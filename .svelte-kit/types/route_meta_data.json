@@ -7,14 +7,24 @@
 	"/api/cloud-eval": [
 		"src/routes/api/cloud-eval/+server.ts"
 	],
+	"/api/inject-new": [
+		"src/routes/api/inject-new/+server.ts"
+	],
 	"/api/review": [
 		"src/routes/api/review/+server.ts"
+	],
+	"/api/settings": [
+		"src/routes/api/settings/+server.ts"
 	],
 	"/api/sync": [
 		"src/routes/api/sync/+server.ts"
 	],
 	"/review": [
 		"src/routes/review/+page.server.ts",
+		"src/routes/+layout.server.ts"
+	],
+	"/settings": [
+		"src/routes/settings/+page.ts",
 		"src/routes/+layout.server.ts"
 	],
 	"/setup": [

@@ -14,7 +14,8 @@
     lastMove,
     dests,
     interactive = true,
-    onMove
+    onMove,
+    version = 0
   }: {
     fen: string;
     orientation?: 'white' | 'black';
@@ -23,6 +24,7 @@
     dests?: Map<Key, Key[]>;
     interactive?: boolean;
     onMove?: (orig: Key, dest: Key) => void;
+    version?: number;
   } = $props();
 
   let el: HTMLElement;
@@ -34,6 +36,7 @@
   });
 
   $effect(() => {
+    version; // track version so wrong-move resets trigger a re-run
     cg?.set(buildConfig());
   });
 
@@ -56,17 +59,6 @@
     };
   }
 
-  export function setPosition(newFen: string, newLastMove?: [Key, Key], newDests?: Map<Key, Key[]>) {
-    cg?.set({
-      fen: newFen,
-      lastMove: newLastMove,
-      movable: {
-        dests: newDests ?? new Map(),
-        events: { after: onMove }
-      }
-    });
-  }
-
   export function lock() {
     cg?.set({ movable: { color: undefined }, draggable: { enabled: false } });
   }
@@ -78,6 +70,10 @@
 
   export function highlightSquare(square: Key) {
     cg?.setAutoShapes([{ orig: square, brush: 'yellow' }]);
+  }
+
+  export function setShapes(shapes: { orig: Key; dest?: Key; brush?: string }[]) {
+    cg?.setAutoShapes(shapes);
   }
 
   export function clearShapes() {

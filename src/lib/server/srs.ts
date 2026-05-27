@@ -84,18 +84,48 @@ export function applyReview(
   })();
 }
 
-export function getDueCard(): Card | null {
+function getNewCardLimit(): { limit: number; usedToday: number } {
+  const limitRow = db.prepare("SELECT value FROM config WHERE key = 'new_cards_per_day'").get() as { value: string } | undefined;
+  const limit = limitRow ? parseInt(limitRow.value) : 20;
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const startOfDay = today.getTime();
+
+  const extraRow = db.prepare("SELECT value FROM config WHERE key = 'extra_new_today'").get() as { value: string } | undefined;
+  let extra = 0;
+  if (extraRow) {
+    const [dateStr, nStr] = extraRow.value.split(':');
+    if (dateStr === today.toISOString().slice(0, 10)) extra = parseInt(nStr) || 0;
+  }
+
+  const usedToday = (db
+    .prepare("SELECT COUNT(*) as n FROM cards WHERE reps = 1 AND last_reviewed_at >= ?")
+    .get(startOfDay) as { n: number }).n;
+
+  const effectiveLimit = limit === 0 ? Infinity : limit + extra;
+  return { limit: effectiveLimit, usedToday };
+}
+
+export function getDueCard(source?: 'puzzle' | 'game'): Card | null {
+  const now = Date.now();
+  const { limit, usedToday } = getNewCardLimit();
+  const allowNew = usedToday < limit;
+
+  const sourceClause = source ? 'AND source = ?' : '';
+  const newExclude = allowNew ? '' : "AND state != 'new'";
+  const params: unknown[] = source ? [now, source] : [now];
+
   return (
     (db
-      .prepare('SELECT * FROM cards WHERE due <= ? ORDER BY RANDOM() LIMIT 1')
-      .get(Date.now()) as Card | undefined) ?? null
+      .prepare(`SELECT * FROM cards WHERE due <= ? ${sourceClause} ${newExclude} ORDER BY RANDOM() LIMIT 1`)
+      .get(...params) as Card | undefined) ?? null
   );
 }
 
 export function getDueStats() {
   const now = Date.now();
-  const due = (
-    db.prepare("SELECT COUNT(*) as n FROM cards WHERE due <= ?").get(now) as { n: number }
+  const dueNonNew = (
+    db.prepare("SELECT COUNT(*) as n FROM cards WHERE due <= ? AND state != 'new'").get(now) as { n: number }
   ).n;
   const newCards = (
     db.prepare("SELECT COUNT(*) as n FROM cards WHERE state = 'new'").get() as { n: number }
@@ -105,6 +135,10 @@ export function getDueStats() {
       .prepare("SELECT COUNT(*) as n FROM cards WHERE state IN ('learning','relearning')")
       .get() as { n: number }
   ).n;
-  return { due, new: newCards, learning };
+
+  const { limit, usedToday } = getNewCardLimit();
+  const newAllowed = limit === Infinity ? newCards : Math.max(0, Math.min(newCards, limit - usedToday));
+
+  return { due: dueNonNew + newAllowed, new: newCards, learning };
 }
 

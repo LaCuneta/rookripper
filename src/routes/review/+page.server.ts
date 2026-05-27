@@ -5,8 +5,10 @@ import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
 import { chessgroundDests } from 'chessops/compat';
 
-export const load: PageServerLoad = async () => {
-  const card = getDueCard();
+export const load: PageServerLoad = async ({ url }) => {
+  const sp = url.searchParams.get('source');
+  const source = sp === 'puzzle' || sp === 'game' ? sp : undefined;
+  const card = getDueCard(source);
 
   if (!card) throw redirect(302, '/');
 

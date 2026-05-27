@@ -3,6 +3,17 @@
 
   let syncing = $state(false);
   let syncMsg = $state('');
+  let injecting = $state(false);
+
+  async function injectMore() {
+    injecting = true;
+    try {
+      await fetch('/api/inject-new', { method: 'POST' });
+      window.location.reload();
+    } finally {
+      injecting = false;
+    }
+  }
 
   async function sync() {
     syncing = true;
@@ -26,6 +37,53 @@
     if (!ts) return 'never';
     return new Date(ts).toLocaleString();
   }
+
+  // ── Card breakdown ────────────────────────────────────────────────────────
+  type CardState = 'new' | 'learning' | 'review' | 'relearning';
+  const STATES: CardState[] = ['new', 'learning', 'review', 'relearning'];
+
+  const bd = $derived.by(() => {
+    const r = {
+      puzzle: { new: 0, learning: 0, review: 0, relearning: 0 } as Record<CardState, number>,
+      game:   { new: 0, learning: 0, review: 0, relearning: 0 } as Record<CardState, number>,
+    };
+    for (const row of data.cardBreakdown) {
+      const src = row.source as 'puzzle' | 'game';
+      const st  = row.state  as CardState;
+      if (STATES.includes(st)) r[src][st] = row.n;
+    }
+    return r;
+  });
+
+  function rowTotal(st: CardState) { return bd.puzzle[st] + bd.game[st]; }
+  const puzzleTotal = $derived(STATES.reduce((s, st) => s + bd.puzzle[st], 0));
+  const gameTotal   = $derived(STATES.reduce((s, st) => s + bd.game[st], 0));
+  const grandTotal  = $derived(puzzleTotal + gameTotal);
+
+  // ── 14-day forecast ───────────────────────────────────────────────────────
+  function dateKey(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function fmtDay(d: Date, i: number): string {
+    if (i === 0) return 'Today';
+    if (i === 1) return 'Tomorrow';
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  const forecastDays = $derived.by(() => {
+    const fmap = new Map(data.dailyForecast.map((d: {day:string;n:number}) => [d.day, d.n]));
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(t); d.setDate(d.getDate() + i);
+      const key = dateKey(d);
+      return { label: fmtDay(d, i), n: (fmap.get(key) as number) ?? 0 };
+    });
+  });
+
+  const maxBar        = $derived(Math.max(...forecastDays.map(d => d.n), 1));
+  const scheduledIn30 = $derived(forecastDays.reduce((s, d) => s + d.n, 0));
+  const avgPerDay     = $derived(grandTotal > 0 ? (scheduledIn30 / 30).toFixed(1) : '0');
 </script>
 
 <svelte:head><title>RookRipper</title></svelte:head>
@@ -49,6 +107,67 @@
   <a href="/review" class="review-btn">Start Review ({data.stats.due})</a>
 {:else}
   <p class="empty">No cards due. Check back later or sync for new failures.</p>
+{/if}
+
+{#if data.dailyLimit > 0}
+  <div class="new-cards-row">
+    <span class="new-cards-label">
+      New today: {data.newToday} / {data.dailyLimit + data.extraToday}
+    </span>
+    {#if data.stats.new > 0}
+      <button class="inject-btn" onclick={injectMore} disabled={injecting}>
+        {injecting ? 'Adding…' : '+ 20 more new'}
+      </button>
+    {/if}
+  </div>
+{/if}
+
+{#if grandTotal > 0}
+  <section class="card-stats">
+    <h2>Card breakdown</h2>
+    <table class="breakdown">
+      <thead>
+        <tr><th></th><th>Puzzles</th><th>Games</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+        {#each STATES as st}
+          <tr class:dim={rowTotal(st) === 0}>
+            <td class="state-label">{st}</td>
+            <td>{bd.puzzle[st] || '—'}</td>
+            <td>{bd.game[st] || '—'}</td>
+            <td class="total-col">{rowTotal(st) || '—'}</td>
+          </tr>
+        {/each}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td class="state-label">total</td>
+          <td>{puzzleTotal}</td>
+          <td>{gameTotal}</td>
+          <td class="total-col">{grandTotal}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <h2>Scheduled reviews — next 30 days</h2>
+    <p class="forecast-note">
+      {scheduledIn30} reviews scheduled · avg {avgPerDay}/day
+      {#if bd.puzzle.new + bd.game.new > 0}
+        · {bd.puzzle.new + bd.game.new} unstarted cards not shown
+      {/if}
+    </p>
+    <div class="forecast">
+      {#each forecastDays as day}
+        <div class="bar-row">
+          <span class="bar-label">{day.label}</span>
+          <span class="bar-track">
+            <span class="bar-fill" style="width: {(day.n / maxBar) * 100}%"></span>
+          </span>
+          <span class="bar-count">{day.n || ''}</span>
+        </div>
+      {/each}
+    </div>
+  </section>
 {/if}
 
 <section class="sync">
@@ -134,6 +253,135 @@
     margin-bottom: 2rem;
   }
 
+  .new-cards-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+  }
+
+  .new-cards-label {
+    color: #888;
+  }
+
+  .inject-btn {
+    background: #2a2a2a;
+    color: #aaa;
+    border: 1px solid #444;
+    font-size: 0.8rem;
+    font-weight: 400;
+    padding: 0.25rem 0.7rem;
+  }
+
+  .inject-btn:hover:not(:disabled) { background: #363636; color: #ccc; }
+  .inject-btn:disabled { opacity: 0.5; }
+
+  /* ── Card stats ── */
+  .card-stats {
+    border-top: 1px solid #333;
+    padding-top: 1.2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-stats h2 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    margin-bottom: 0.6rem;
+    margin-top: 1.2rem;
+  }
+
+  .card-stats h2:first-child { margin-top: 0; }
+
+  .breakdown {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    color: #aaa;
+    margin-bottom: 1rem;
+  }
+
+  .breakdown th {
+    text-align: right;
+    padding: 0.25rem 0.5rem;
+    color: #555;
+    font-weight: 400;
+    font-size: 0.75rem;
+  }
+
+  .breakdown th:first-child { text-align: left; }
+
+  .breakdown td {
+    text-align: right;
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid #222;
+  }
+
+  .breakdown tfoot td {
+    border-top: 1px solid #333;
+    border-bottom: none;
+    color: #666;
+    font-size: 0.8rem;
+  }
+
+  .state-label {
+    text-align: left !important;
+    color: #666;
+    text-transform: capitalize;
+  }
+
+  .total-col { color: #888; }
+
+  .breakdown tr.dim td { color: #3a3a3a; }
+
+  .forecast-note {
+    font-size: 0.75rem;
+    color: #555;
+    margin-bottom: 0.6rem;
+  }
+
+  .forecast { display: flex; flex-direction: column; gap: 0.3rem; }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .bar-label {
+    width: 9rem;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 6px;
+    background: #242424;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    display: block;
+    height: 100%;
+    background: #3a6ea8;
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .bar-count {
+    width: 2.5rem;
+    text-align: right;
+    font-size: 0.75rem;
+    color: #555;
+  }
+
+  /* ── Sync ── */
   .sync {
     border-top: 1px solid #333;
     padding-top: 1.2rem;
@@ -164,13 +412,8 @@
     white-space: nowrap;
   }
 
-  .sync-row button:hover:not(:disabled) {
-    background: #444;
-  }
-
-  .sync-row button:disabled {
-    opacity: 0.5;
-  }
+  .sync-row button:hover:not(:disabled) { background: #444; }
+  .sync-row button:disabled { opacity: 0.5; }
 
   .sync-msg {
     margin-top: 0.6rem;
@@ -193,11 +436,6 @@
     border-bottom: 1px solid #2a2a2a;
   }
 
-  .sync-log th {
-    color: #666;
-  }
-
-  .sync-log td.error {
-    color: #e07070;
-  }
+  .sync-log th { color: #666; }
+  .sync-log td.error { color: #e07070; }
 </style>

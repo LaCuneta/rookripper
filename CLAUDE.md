@@ -47,7 +47,7 @@ src/routes/api/review/+server.ts ──► applyReview() ──► SQLite
 - **`db.ts`** — SQLite singleton (WAL mode). Runs schema migrations on import. Path controlled by `DATA_DIR` env var (default `./data`). Imported at module load time, so the DB is open for the lifetime of the process.
 - **`lichess.ts`** — Typed fetch wrappers for Lichess API. All calls that require auth read the token from the `config` table at call time.
 - **`sync.ts`** — `syncPuzzles()` and `syncGames()`. Games sync uses chessops to replay moves from the starting position in order to extract FEN-before-blunder and convert SAN→UCI. The `since` cursor for each sync type is stored in the `config` table.
-- **`srs.ts`** — Thin wrapper around `ts-fsrs`. `getDueCard()` is the primary read; `applyReview()` is the primary write (transactional: updates card + inserts review_log row).
+- **`srs.ts`** — Thin wrapper around `ts-fsrs`. `getDueCard(source?)` is the primary read (optional `'puzzle'|'game'` filter); `applyReview()` is the primary write (transactional: updates card + inserts review_log row). Enforces a daily new-card limit stored in the `config` table under `new_cards_per_day` (default 20; 0 = unlimited). A one-time daily override is stored in `extra_new_today` as `"YYYY-MM-DD:N"`.
 
 ### Card types
 
@@ -66,6 +66,26 @@ Phases: `playing → evaluating → complete` (wrong moves loop back to `playing
 For puzzles: user plays even-indexed solution moves (0, 2, 4…); the computer's odd-indexed responses are auto-applied with a 350ms delay.
 
 For game cards: if the user plays a non-best move, `POST /api/cloud-eval` is called server-side, which makes two Lichess cloud-eval calls (original FEN + FEN after user's move) and returns `{ accepted, centipawn_loss }`. The 50cp threshold is the constant `GOOD_ENOUGH_CP` in `src/routes/api/cloud-eval/+server.ts`.
+
+The review route accepts a `?source=puzzle|game` query param (set via the source-filter dropdown in the nav) that is forwarded to `getDueCard()`.
+
+### Settings
+
+**Client-side settings** (`src/lib/settings.ts`) are stored in `localStorage` under `rookripper_settings`. Defaults live in `DEFAULTS`. `loadSettings()` / `saveSettings()` are the access points; reads return a merged copy so missing keys fall back to defaults. The settings page (`/settings`, CSR-only via `ssr = false`) writes on every input event — no submit button.
+
+**Server-side settings** are stored in the `config` table:
+
+| Key | Default | Purpose |
+|---|---|---|
+| `new_cards_per_day` | `20` | Daily new-card cap (0 = unlimited). Read/written by `GET /PATCH /api/settings`. |
+| `extra_new_today` | — | One-time daily override in `"YYYY-MM-DD:N"` format. Incremented by 20 each time the "+ 20 more new" button is pressed (`POST /api/inject-new`). Stale entries (different date) are ignored. |
+
+### Dashboard (`src/routes/+page.svelte`)
+
+In addition to due-card counts and sync history, the dashboard now shows:
+- **New today** progress row (`newToday / dailyLimit + extraToday`) with a "+ 20 more new" button (calls `POST /api/inject-new`).
+- **Card breakdown** table — counts by `source × state` (new / learning / review / relearning).
+- **30-day review forecast** — bar chart of scheduled non-new cards per calendar day, sourced from the `dailyForecast` array returned by the server load.
 
 ### Key environment variables
 

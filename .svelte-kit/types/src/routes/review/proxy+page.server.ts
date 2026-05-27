@@ -6,8 +6,10 @@ import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
 import { chessgroundDests } from 'chessops/compat';
 
-export const load = async () => {
-  const card = getDueCard();
+export const load = async ({ url }: Parameters<PageServerLoad>[0]) => {
+  const sp = url.searchParams.get('source');
+  const source = sp === 'puzzle' || sp === 'game' ? sp : undefined;
+  const card = getDueCard(source);
 
   if (!card) throw redirect(302, '/');
 
@@ -21,4 +23,3 @@ export const load = async () => {
 
   return { card, dests, turnColor };
 };
-;null as any as PageServerLoad;

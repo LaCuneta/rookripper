@@ -1,7 +1,18 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
 
   let { data, children }: { data: { configured: boolean }; children: Snippet } = $props();
+
+  let reviewSource = $derived(
+    page.url.pathname === '/review' ? (page.url.searchParams.get('source') ?? '') : ''
+  );
+
+  function onSourceChange(e: Event) {
+    const val = (e.currentTarget as HTMLSelectElement).value;
+    goto(val ? `/review?source=${val}` : '/review');
+  }
 </script>
 
 <div class="app">
@@ -9,8 +20,16 @@
     <a href="/" class="logo">RookRipper</a>
     {#if data.configured}
       <nav>
-        <a href="/review">Review</a>
+        <div class="review-nav">
+          <a href="/review">Review</a>
+          <select value={reviewSource} onchange={onSourceChange}>
+            <option value="">All</option>
+            <option value="puzzle">Puzzles</option>
+            <option value="game">Games</option>
+          </select>
+        </div>
         <a href="/">Dashboard</a>
+        <a href="/settings">Settings</a>
       </nav>
     {/if}
   </header>
@@ -76,5 +95,27 @@
   nav {
     display: flex;
     gap: 1.2rem;
+    align-items: center;
+  }
+
+  .review-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .review-nav select {
+    background: #2a2a2a;
+    color: #888;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    padding: 0.15rem 0.3rem;
+    cursor: pointer;
+  }
+
+  .review-nav select:hover {
+    border-color: #666;
+    color: #bbb;
   }
 </style>
