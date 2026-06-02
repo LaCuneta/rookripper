@@ -39,8 +39,11 @@
  */
 declare module '$env/static/private' {
 	export const USER: string;
+	export const AI_AGENT: string;
+	export const CLAUDE_CODE_ENTRYPOINT: string;
 	export const npm_config_user_agent: string;
 	export const SBT_HOME: string;
+	export const GIT_EDITOR: string;
 	export const XDG_SESSION_TYPE: string;
 	export const BUN_INSTALL: string;
 	export const npm_node_execpath: string;
@@ -68,6 +71,7 @@ declare module '$env/static/private' {
 	export const COLOR: string;
 	export const NVM_DIR: string;
 	export const WAYLAND_DISPLAY: string;
+	export const TMPDIR: string;
 	export const LOGNAME: string;
 	export const _: string;
 	export const SDKMAN_CANDIDATES_API: string;
@@ -79,10 +83,12 @@ declare module '$env/static/private' {
 	export const TERM: string;
 	export const npm_config_cache: string;
 	export const GNOME_DESKTOP_SESSION_ID: string;
+	export const TMPPREFIX: string;
 	export const npm_config_node_gyp: string;
 	export const PATH: string;
 	export const SESSION_MANAGER: string;
 	export const SDKMAN_CANDIDATES_DIR: string;
+	export const CLAUDE_CODE_TMPDIR: string;
 	export const NODE: string;
 	export const npm_package_name: string;
 	export const GNOME_TERMINAL_SCREEN: string;
@@ -90,9 +96,12 @@ declare module '$env/static/private' {
 	export const GNOME_SETUP_DISPLAY: string;
 	export const XDG_RUNTIME_DIR: string;
 	export const SDKMAN_BROKER_API: string;
+	export const COREPACK_ENABLE_AUTO_PIN: string;
 	export const DISPLAY: string;
+	export const CLAUDE_EFFORT: string;
 	export const XDG_CURRENT_DESKTOP: string;
 	export const LANG: string;
+	export const NoDefaultCurrentDirectoryInExePath: string;
 	export const XDG_SESSION_DESKTOP: string;
 	export const GNOME_TERMINAL_SERVICE: string;
 	export const XMODIFIERS: string;
@@ -107,6 +116,8 @@ declare module '$env/static/private' {
 	export const npm_lifecycle_event: string;
 	export const QT_ACCESSIBILITY: string;
 	export const GDMSESSION: string;
+	export const CLAUDE_CODE_SESSION_ID: string;
+	export const CLAUDECODE: string;
 	export const QT_IM_MODULE: string;
 	export const npm_config_globalconfig: string;
 	export const npm_config_init_module: string;
@@ -115,6 +126,7 @@ declare module '$env/static/private' {
 	export const npm_execpath: string;
 	export const XDG_DATA_DIRS: string;
 	export const NVM_CD_FLAGS: string;
+	export const CLAUDE_CODE_EXECPATH: string;
 	export const npm_config_global_prefix: string;
 	export const npm_command: string;
 	export const VTE_VERSION: string;
@@ -209,8 +221,11 @@ declare module '$env/static/public' {
 declare module '$env/dynamic/private' {
 	export const env: {
 		USER: string;
+		AI_AGENT: string;
+		CLAUDE_CODE_ENTRYPOINT: string;
 		npm_config_user_agent: string;
 		SBT_HOME: string;
+		GIT_EDITOR: string;
 		XDG_SESSION_TYPE: string;
 		BUN_INSTALL: string;
 		npm_node_execpath: string;
@@ -238,6 +253,7 @@ declare module '$env/dynamic/private' {
 		COLOR: string;
 		NVM_DIR: string;
 		WAYLAND_DISPLAY: string;
+		TMPDIR: string;
 		LOGNAME: string;
 		_: string;
 		SDKMAN_CANDIDATES_API: string;
@@ -249,10 +265,12 @@ declare module '$env/dynamic/private' {
 		TERM: string;
 		npm_config_cache: string;
 		GNOME_DESKTOP_SESSION_ID: string;
+		TMPPREFIX: string;
 		npm_config_node_gyp: string;
 		PATH: string;
 		SESSION_MANAGER: string;
 		SDKMAN_CANDIDATES_DIR: string;
+		CLAUDE_CODE_TMPDIR: string;
 		NODE: string;
 		npm_package_name: string;
 		GNOME_TERMINAL_SCREEN: string;
@@ -260,9 +278,12 @@ declare module '$env/dynamic/private' {
 		GNOME_SETUP_DISPLAY: string;
 		XDG_RUNTIME_DIR: string;
 		SDKMAN_BROKER_API: string;
+		COREPACK_ENABLE_AUTO_PIN: string;
 		DISPLAY: string;
+		CLAUDE_EFFORT: string;
 		XDG_CURRENT_DESKTOP: string;
 		LANG: string;
+		NoDefaultCurrentDirectoryInExePath: string;
 		XDG_SESSION_DESKTOP: string;
 		GNOME_TERMINAL_SERVICE: string;
 		XMODIFIERS: string;
@@ -277,6 +298,8 @@ declare module '$env/dynamic/private' {
 		npm_lifecycle_event: string;
 		QT_ACCESSIBILITY: string;
 		GDMSESSION: string;
+		CLAUDE_CODE_SESSION_ID: string;
+		CLAUDECODE: string;
 		QT_IM_MODULE: string;
 		npm_config_globalconfig: string;
 		npm_config_init_module: string;
@@ -285,6 +308,7 @@ declare module '$env/dynamic/private' {
 		npm_execpath: string;
 		XDG_DATA_DIRS: string;
 		NVM_CD_FLAGS: string;
+		CLAUDE_CODE_EXECPATH: string;
 		npm_config_global_prefix: string;
 		npm_command: string;
 		VTE_VERSION: string;

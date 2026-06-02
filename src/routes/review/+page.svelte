@@ -302,45 +302,74 @@
     version={boardVersion}
   />
 
-  <div class="info">
-    <div class="source">
-      {sourceLabel}
-      <a href={lichessUrl()} target="_blank" rel="noopener noreferrer" class="lichess-link">
-        Open on Lichess ↗
-      </a>
+  <div class="side">
+    <div class="info">
+      <div class="source">
+        {sourceLabel}
+        <a href={lichessUrl()} target="_blank" rel="noopener noreferrer" class="lichess-link">
+          Open on Lichess ↗
+        </a>
+      </div>
+      <div class="message" class:correct={phase === 'complete'}>
+        {message}
+      </div>
     </div>
-    <div class="message" class:correct={phase === 'complete'}>
-      {message}
-    </div>
+
+    {#if phase === 'playing'}
+      <div class="action-buttons">
+        <button class="hint-btn" onclick={showHint}>Hint</button>
+        <button class="giveup-btn" onclick={giveUp}>Give Up</button>
+      </div>
+    {/if}
+
+    {#if phase === 'complete'}
+      <div class="action-buttons">
+        <span class="rating-label" data-rating={ratingLabel}>{ratingLabel}</span>
+        <button class="next-btn" onclick={next}>
+          {countdown !== null ? `Next in ${countdown}s` : 'Next →'}
+        </button>
+      </div>
+    {/if}
   </div>
-
-  {#if phase === 'playing'}
-    <div class="action-buttons">
-      <button class="hint-btn" onclick={showHint}>Hint</button>
-      <button class="giveup-btn" onclick={giveUp}>Give Up</button>
-    </div>
-  {/if}
-
-  {#if phase === 'complete'}
-    <div class="action-buttons">
-      <span class="rating-label" data-rating={ratingLabel}>{ratingLabel}</span>
-      <button class="next-btn" onclick={next}>
-        {countdown !== null ? `Next in ${countdown}s` : 'Next →'}
-      </button>
-    </div>
-  {/if}
 </div>
 
 <style>
   .review {
+    --board-size: min(480px, 90vw);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 1.2rem;
   }
 
+  .side {
+    width: var(--board-size);
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+
+  /* Wide screens: board on the left, status + controls in a column to the
+     right, and the board grows to fill the available height. */
+  @media (min-width: 860px) {
+    .review {
+      --board-size: min(78vh, 700px);
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 2rem;
+    }
+
+    .side {
+      width: 18rem;
+      flex: none;
+      position: sticky;
+      top: 1.5rem;
+    }
+  }
+
   .info {
-    width: min(480px, 90vw);
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
@@ -376,10 +405,10 @@
   }
 
   .action-buttons {
-    width: min(480px, 90vw);
+    width: 100%;
     display: flex;
     gap: 0.5rem;
-    justify-content: flex-end;
+    justify-content: center;
   }
 
   .hint-btn, .giveup-btn {

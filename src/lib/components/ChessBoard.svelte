@@ -85,8 +85,8 @@
 
 <style>
   .cg-wrap {
-    width: min(480px, 90vw);
-    height: min(480px, 90vw);
+    width: var(--board-size, min(480px, 90vw));
+    height: var(--board-size, min(480px, 90vw));
   }
 
   :global(.cg-wrap.wrong) {

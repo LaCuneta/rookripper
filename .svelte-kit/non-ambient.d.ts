@@ -47,6 +47,6 @@ declare module "$app/types" {
 		};
 		Pathname(): "/" | "/api/cloud-eval" | "/api/inject-new" | "/api/review" | "/api/settings" | "/api/sync" | "/review" | "/settings" | "/setup";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
-		Asset(): "/icons/icon.svg" | string & {};
+		Asset(): "/icons/icon-192.png" | "/icons/icon-512.png" | "/icons/icon.svg" | string & {};
 	}
 }
