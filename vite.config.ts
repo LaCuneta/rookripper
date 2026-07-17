@@ -21,13 +21,9 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallbackDenylist: [/^\/api\//]
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
       },
       devOptions: { enabled: false }
     })
-  ],
-  optimizeDeps: {
-    exclude: ['better-sqlite3']
-  }
+  ]
 });

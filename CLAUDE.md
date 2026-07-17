@@ -8,7 +8,7 @@ The `vite` and `svelte-kit` binaries live in `node_modules/.bin/` — the script
 
 ```bash
 npm run dev          # dev server on http://localhost:5173
-npm run build        # production build → build/
+npm run build        # static production build → build/ (SPA)
 npm run preview      # preview production build
 npm run check        # svelte-check type-check (run after svelte-kit sync)
 node_modules/.bin/svelte-kit sync   # regenerate .svelte-kit/ (needed after first clone)
@@ -17,37 +17,63 @@ node_modules/.bin/vite build        # if npm run build fails due to PATH
 
 There are no automated tests yet. Type-checking is the primary correctness gate: `npm run check`.
 
-`better-sqlite3` requires native compilation. After `npm install` on a new machine or Node upgrade, run:
-```bash
-npm rebuild better-sqlite3
-```
-
 ## Architecture
 
-**Full-stack SvelteKit app** — one process handles both the Node server (API routes, SQLite, Lichess sync) and serves the Svelte frontend. No separate backend.
+**Fully client-side SvelteKit SPA.** There is no server: `adapter-static` emits a
+static bundle (`build/`, with a `200.html` fallback), `ssr = false` in the root
+`+layout.ts` makes every route CSR-only, and all data lives in the browser
+(IndexedDB via Dexie). The app talks to Lichess directly from the browser.
 
 ### Data flow
 
 ```
-Lichess API ──► src/lib/server/sync.ts ──► SQLite (data/rookripper.db)
-                                                    │
-                                          src/lib/server/srs.ts (FSRS scheduling)
-                                                    │
-src/routes/review/+page.server.ts ◄── getDueCard() ─┘
+Lichess API ──► src/lib/sync.ts ──► IndexedDB / Dexie (src/lib/db.ts)
+                                              │
+                                    src/lib/srs.ts (FSRS scheduling)
+                                              │
+src/routes/review/+page.ts ◄── getDueCard() ──┘   (client load)
         │
         ▼
 src/routes/review/+page.svelte  (chessground board, puzzle/game move logic)
-        │ POST /api/review
+        │ applyReview()  /  evaluateMove()
         ▼
-src/routes/api/review/+server.ts ──► applyReview() ──► SQLite
+      Dexie
 ```
 
-### Server-only modules (`src/lib/server/`)
+### Client modules (`src/lib/`)
 
-- **`db.ts`** — SQLite singleton (WAL mode). Runs schema migrations on import. Path controlled by `DATA_DIR` env var (default `./data`). Imported at module load time, so the DB is open for the lifetime of the process.
-- **`lichess.ts`** — Typed fetch wrappers for Lichess API. All calls that require auth read the token from the `config` table at call time.
-- **`sync.ts`** — `syncPuzzles()` and `syncGames()`. Games sync uses chessops to replay moves from the starting position in order to extract FEN-before-blunder and convert SAN→UCI. The `since` cursor for each sync type is stored in the `config` table.
-- **`srs.ts`** — Thin wrapper around `ts-fsrs`. `getDueCard(source?)` is the primary read (optional `'puzzle'|'game'` filter); `applyReview()` is the primary write (transactional: updates card + inserts review_log row). Enforces a daily new-card limit stored in the `config` table under `new_cards_per_day` (default 20; 0 = unlimited). A one-time daily override is stored in `extra_new_today` as `"YYYY-MM-DD:N"`.
+- **`db.ts`** — Dexie database singleton. Tables `cards`, `reviewLog`, `meta`
+  (key/value config), `syncLog`. Schema mirrors the former SQLite tables so
+  exports round-trip. Exports `getMeta`/`setMeta`/`deleteMeta` and
+  `requestPersistentStorage()` (`navigator.storage.persist()`).
+- **`oauth.ts`** — Lichess OAuth 2.0 **PKCE** flow (public client, no secret, no
+  backend). `beginLogin()` redirects to Lichess; `completeLogin(url)` exchanges
+  the code and stores the token + username in `meta`. `client_id`/`redirect_uri`
+  derive from `window.location.origin + base` so it works on localhost and a
+  future github.io subpath unchanged.
+- **`lichess.ts`** — Browser fetch wrappers for the Lichess API. Auth calls read
+  the token from Dexie `meta` at call time.
+- **`sync.ts`** — `syncPuzzles()`, `syncGames()`, `syncAll()`. Games sync uses
+  chessops (browser-safe) to replay moves from the start position to extract
+  FEN-before-blunder and convert SAN→UCI. `since` cursors are stored in `meta`.
+- **`srs.ts`** — Wrapper around `ts-fsrs` (pure JS, runs unchanged in the
+  browser). `getDueCard(source?)` is the primary read; `applyReview()` is the
+  primary write (Dexie transaction: updates card + adds a reviewLog row). Daily
+  new-card limit lives in `meta.new_cards_per_day` (default 20; 0 = unlimited);
+  `injectExtraNew()` bumps the one-time override in `meta.extra_new_today`.
+- **`cloudEval.ts`** — `evaluateMove(fen, move)`: two direct Lichess cloud-eval
+  calls (original FEN + FEN after the move), returns `{ accepted, centipawn_loss,
+  reason }`. `GOOD_ENOUGH_CP = 50`.
+- **`export.ts`** — `exportData()`/`importData()` + browser download/read
+  helpers. Backup JSON is `{ version, app, exportedAt, cards, reviewLog, meta }`
+  (SRS state only — never the access token). Matches `scripts/dump-sql-to-json.mjs`.
+
+### Migrating legacy SQLite progress
+
+`scripts/dump-sql-to-json.mjs` reads a legacy `data/rookripper.db` (via
+`better-sqlite3`, which is no longer a project dependency — install it ad hoc to
+run the script) and writes a backup JSON in the format `importData()` accepts.
+Import it from the dashboard's **Data & backup** section.
 
 ### Card types
 
@@ -65,42 +91,53 @@ Phases: `playing → evaluating → complete` (wrong moves loop back to `playing
 
 For puzzles: user plays even-indexed solution moves (0, 2, 4…); the computer's odd-indexed responses are auto-applied with a 350ms delay.
 
-For game cards: if the user plays a non-best move, `POST /api/cloud-eval` is called server-side, which makes two Lichess cloud-eval calls (original FEN + FEN after user's move) and returns `{ accepted, centipawn_loss }`. The 50cp threshold is the constant `GOOD_ENOUGH_CP` in `src/routes/api/cloud-eval/+server.ts`.
+For game cards: a non-best move calls `evaluateMove()` (`src/lib/cloudEval.ts`),
+which makes two Lichess cloud-eval calls and accepts moves within the 50cp
+`GOOD_ENOUGH_CP` threshold.
 
 The review route accepts a `?source=puzzle|game` query param (set via the source-filter dropdown in the nav) that is forwarded to `getDueCard()`.
 
 ### Settings
 
-**Client-side settings** (`src/lib/settings.ts`) are stored in `localStorage` under `rookripper_settings`. Defaults live in `DEFAULTS`. `loadSettings()` / `saveSettings()` are the access points; reads return a merged copy so missing keys fall back to defaults. The settings page (`/settings`, CSR-only via `ssr = false`) writes on every input event — no submit button.
+**Client-side UI settings** (`src/lib/settings.ts`) are stored in `localStorage`
+under `rookripper_settings`. Defaults live in `DEFAULTS`. `loadSettings()` /
+`saveSettings()` are the access points; reads return a merged copy so missing
+keys fall back to defaults. The settings page writes on every input event.
 
-**Server-side settings** are stored in the `config` table:
+**Scheduling config** lives in the Dexie `meta` table:
 
 | Key | Default | Purpose |
 |---|---|---|
-| `new_cards_per_day` | `20` | Daily new-card cap (0 = unlimited). Read/written by `GET /PATCH /api/settings`. |
-| `extra_new_today` | — | One-time daily override in `"YYYY-MM-DD:N"` format. Incremented by 20 each time the "+ 20 more new" button is pressed (`POST /api/inject-new`). Stale entries (different date) are ignored. |
+| `new_cards_per_day` | `20` | Daily new-card cap (0 = unlimited). Read/written by the settings page. |
+| `extra_new_today` | — | One-time daily override in `"YYYY-MM-DD:N"` format. `injectExtraNew()` bumps it by 20 (the "+ 20 more new" button). Stale entries (different date) are ignored. |
+| `access_token`, `lichess_username` | — | Set by the OAuth flow. Never exported. |
+| `last_puzzle_sync`, `last_game_sync` | — | Sync cursors. |
 
 ### Dashboard (`src/routes/+page.svelte`)
 
-In addition to due-card counts and sync history, the dashboard now shows:
-- **New today** progress row (`newToday / dailyLimit + extraToday`) with a "+ 20 more new" button (calls `POST /api/inject-new`).
-- **Card breakdown** table — counts by `source × state` (new / learning / review / relearning).
-- **30-day review forecast** — bar chart of scheduled non-new cards per calendar day, sourced from the `dailyForecast` array returned by the server load.
+Client `+page.ts` load computes everything from Dexie. The dashboard shows:
+- **New today** progress row with a "+ 20 more new" button (`injectExtraNew()`).
+- **Card breakdown** table — counts by `source × state`.
+- **30-day review forecast** — bar chart of scheduled non-new cards per calendar day.
+- **Data & backup** — export/import of SRS state, with a durability warning.
 
-### Key environment variables
+### Durability
 
-| Var | Default | Purpose |
-|---|---|---|
-| `DATA_DIR` | `./data` | SQLite file location |
-| `ORIGIN` | — | **Required** in production — the app's base URL (SvelteKit requirement) |
-| `PORT` | `3000` | Server listen port |
-
-Docker: the compose file maps host port **3999** → container 3000. Update `ORIGIN` in `docker-compose.yml` before deploying to a homelab hostname.
+Browser storage can be evicted. The app calls `navigator.storage.persist()`
+(`requestPersistentStorage()`) on load and after connecting, and surfaces
+export/import as the backup path. There is no cross-device sync.
 
 ### Lichess API notes
 
-- Auth: personal access token (PAT) stored in `config` table, scope `puzzle:read`. Public game endpoints need no scope.
+- Auth: OAuth 2.0 PKCE, scope `puzzle:read`, token in Dexie `meta`. Public game endpoints need no scope.
+- Calls run directly from the browser; Lichess sets permissive CORS on these read endpoints.
 - Puzzle activity endpoint returns ndjson sorted newest-first; `since` param filters by timestamp.
 - Game export: `?analyzed=true&evals=true` returns JSON analysis array indexed per half-move. `analysis[i].best` is UCI; moves string is SAN.
-- Cloud eval (`/api/cloud-eval`) returns 404 when the position isn't in the database — the review route handles this gracefully by requiring the exact best move as fallback.
+- Cloud eval returns 404 when the position isn't in the database — `evaluateMove()` handles this by requiring the exact best move as fallback.
 - Storm/Streak: no per-puzzle failure data available via API; excluded from scope.
+
+### Deployment
+
+Static host (eventual target: GitHub Pages / `*.github.io`). No process to run —
+serve `build/`. For a subpath deploy, set `kit.paths.base` and the OAuth
+redirect/links follow automatically. GH Pages deploy scripting is not set up yet.
