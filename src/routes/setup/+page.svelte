@@ -1,52 +1,83 @@
 <script lang="ts">
-  import { enhance } from '$app/forms';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
+  import { page } from '$app/state';
+  import { beginLogin, completeLogin, isCallback, isConnected, logout } from '$lib/oauth';
+  import { getMeta, requestPersistentStorage } from '$lib/db';
 
-  let { data, form } = $props();
-  let saving = $state(false);
+  type Status = 'idle' | 'connecting' | 'error';
+  let status = $state<Status>('idle');
+  let error = $state('');
+  let connected = $state(false);
+  let username = $state<string | null>(null);
+
+  onMount(async () => {
+    if (isCallback(page.url)) {
+      status = 'connecting';
+      try {
+        username = await completeLogin(page.url);
+        await requestPersistentStorage();
+        await goto(`${base}/`);
+        return;
+      } catch (e) {
+        status = 'error';
+        error = e instanceof Error ? e.message : String(e);
+        // Strip code/state from the URL so a refresh doesn't re-run the exchange.
+        history.replaceState(null, '', `${base}/setup`);
+      }
+    }
+    connected = await isConnected();
+    username = (await getMeta('lichess_username')) ?? null;
+  });
+
+  async function connect() {
+    status = 'connecting';
+    try {
+      await beginLogin(); // redirects away
+    } catch (e) {
+      status = 'error';
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function disconnect() {
+    await logout();
+    connected = false;
+    username = null;
+    status = 'idle';
+  }
 </script>
 
 <svelte:head><title>Setup · RookRipper</title></svelte:head>
 
 <div class="setup">
-  <h1>Setup</h1>
+  <h1>Connect to Lichess</h1>
 
-  {#if data.hasToken && data.username}
-    <p class="connected">Connected as <strong>{data.username}</strong></p>
+  {#if connected && username}
+    <p class="connected">Connected as <strong>{username}</strong></p>
+    <div class="actions">
+      <a class="primary" href="{base}/">Go to dashboard</a>
+      <button class="secondary" onclick={disconnect}>Disconnect</button>
+    </div>
+  {:else}
+    <p class="help">
+      RookRipper is a fully in-browser app — your puzzles, games, and review
+      progress stay on this device. Connect your Lichess account to pull in your
+      failed puzzles and analyzed games. We request only the
+      <code>puzzle:read</code> scope; your games are public.
+    </p>
+
+    {#if status === 'connecting'}
+      <p class="status">Connecting to Lichess…</p>
+    {:else}
+      <button class="primary" onclick={connect}>Connect with Lichess</button>
+    {/if}
   {/if}
 
-  <p class="help">
-    Generate a personal access token at
-    <a href="https://lichess.org/account/oauth/token" target="_blank" rel="noreferrer">
-      lichess.org/account/oauth/token
-    </a>
-    with the <code>puzzle:read</code> scope. Your games are public and need no extra scope.
-  </p>
-
-  <form method="POST" action="?/save" use:enhance={() => {
-    saving = true;
-    return async ({ update }) => {
-      saving = false;
-      await update();
-    };
-  }}>
-    <label for="token">Personal Access Token</label>
-    <input
-      id="token"
-      name="token"
-      type="password"
-      placeholder="lip_xxxxxxxxxxxxxxxxxxxx"
-      autocomplete="off"
-      required
-    />
-
-    {#if form?.error}
-      <p class="error">{form.error}</p>
-    {/if}
-
-    <button type="submit" disabled={saving}>
-      {saving ? 'Verifying…' : data.hasToken ? 'Update Token' : 'Connect'}
-    </button>
-  </form>
+  {#if status === 'error'}
+    <p class="error">{error}</p>
+  {/if}
 </div>
 
 <style>
@@ -75,10 +106,6 @@
     line-height: 1.6;
   }
 
-  .help a {
-    color: #7eb3e0;
-  }
-
   code {
     background: #2a2a2a;
     padding: 0.1em 0.4em;
@@ -86,46 +113,38 @@
     font-size: 0.85em;
   }
 
-  form {
+  .actions {
     display: flex;
-    flex-direction: column;
     gap: 0.6rem;
+    align-items: center;
   }
 
-  label {
-    font-size: 0.85rem;
-    color: #aaa;
-  }
-
-  input {
-    background: #2a2a2a;
-    border: 1px solid #444;
-    color: #e8e8e8;
-    padding: 0.55rem 0.8rem;
+  .primary {
+    display: inline-block;
+    background: #4a90d9;
+    color: white;
+    padding: 0.6rem 1.2rem;
     border-radius: 4px;
-    font-size: 0.95rem;
-    width: 100%;
+    font-weight: 600;
   }
 
-  input:focus {
-    outline: none;
-    border-color: #7eb3e0;
+  .primary:hover { background: #5aa0e9; text-decoration: none; }
+
+  .secondary {
+    background: #333;
+    color: #ccc;
+  }
+
+  .secondary:hover { background: #444; }
+
+  .status {
+    font-size: 0.9rem;
+    color: #aaa;
   }
 
   .error {
     color: #e07070;
     font-size: 0.85rem;
-  }
-
-  button[type='submit'] {
-    background: #4a90d9;
-    color: white;
-    padding: 0.6rem;
-    align-self: flex-start;
-    min-width: 120px;
-  }
-
-  button:disabled {
-    opacity: 0.5;
+    margin-top: 0.8rem;
   }
 </style>

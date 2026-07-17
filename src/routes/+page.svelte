@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { syncAll } from '$lib/sync';
+  import { injectExtraNew } from '$lib/srs';
+  import { exportData, downloadBackup, readBackupFile, importData } from '$lib/export';
+
   let { data } = $props();
 
   let syncing = $state(false);
@@ -8,7 +12,7 @@
   async function injectMore() {
     injecting = true;
     try {
-      await fetch('/api/inject-new', { method: 'POST' });
+      await injectExtraNew();
       window.location.reload();
     } finally {
       injecting = false;
@@ -19,17 +23,44 @@
     syncing = true;
     syncMsg = '';
     try {
-      const res = await fetch('/api/sync', { method: 'POST' });
-      const json = await res.json();
-      if (res.ok) {
-        syncMsg = `Synced: +${json.puzzles.added} puzzles, +${json.games.added} game cards`;
-      } else {
-        syncMsg = `Error: ${json.error}`;
-      }
+      const { puzzles, games } = await syncAll();
+      syncMsg = `Synced: +${puzzles.added} puzzles, +${games.added} game cards`;
     } catch (e) {
       syncMsg = `Error: ${e}`;
     } finally {
       syncing = false;
+    }
+  }
+
+  // ── Backup / restore ──────────────────────────────────────────────────────
+  let importing = $state(false);
+  let backupMsg = $state('');
+  let fileInput: HTMLInputElement;
+
+  async function exportBackup() {
+    downloadBackup(await exportData());
+    backupMsg = 'Backup downloaded.';
+  }
+
+  async function onImportFile(e: Event) {
+    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (!confirm('Import will replace all current cards and review history. Continue?')) {
+      fileInput.value = '';
+      return;
+    }
+    importing = true;
+    backupMsg = '';
+    try {
+      const data = await readBackupFile(file);
+      const res = await importData(data, 'replace');
+      backupMsg = `Imported ${res.cards} cards, ${res.reviewLog} reviews.`;
+      window.location.reload();
+    } catch (err) {
+      backupMsg = `Import failed: ${err instanceof Error ? err.message : err}`;
+    } finally {
+      importing = false;
+      fileInput.value = '';
     }
   }
 
@@ -203,6 +234,30 @@
         {/each}
       </tbody>
     </table>
+  {/if}
+</section>
+
+<section class="backup">
+  <h2>Data &amp; backup</h2>
+  <p class="backup-note">
+    All your review progress lives in this browser only. Export regularly —
+    clearing browsing data or storage eviction will wipe it.
+  </p>
+  <div class="backup-row">
+    <button onclick={exportBackup}>Export backup</button>
+    <button onclick={() => fileInput.click()} disabled={importing}>
+      {importing ? 'Importing…' : 'Import backup'}
+    </button>
+    <input
+      bind:this={fileInput}
+      type="file"
+      accept="application/json,.json"
+      onchange={onImportFile}
+      hidden
+    />
+  </div>
+  {#if backupMsg}
+    <p class="sync-msg">{backupMsg}</p>
   {/if}
 </section>
 
@@ -438,4 +493,38 @@
 
   .sync-log th { color: #666; }
   .sync-log td.error { color: #e07070; }
+
+  /* ── Backup ── */
+  .backup {
+    border-top: 1px solid #333;
+    padding-top: 1.2rem;
+    margin-top: 1.5rem;
+  }
+
+  .backup h2 {
+    font-size: 1rem;
+    margin-bottom: 0.6rem;
+    color: #aaa;
+  }
+
+  .backup-note {
+    font-size: 0.8rem;
+    color: #888;
+    line-height: 1.5;
+    margin-bottom: 0.8rem;
+  }
+
+  .backup-row {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .backup-row button {
+    background: #333;
+    color: #e8e8e8;
+  }
+
+  .backup-row button:hover:not(:disabled) { background: #444; }
+  .backup-row button:disabled { opacity: 0.5; }
 </style>

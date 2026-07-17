@@ -8,6 +8,8 @@
   import ChessBoard from '$lib/components/ChessBoard.svelte';
   import type { Card } from '$lib/types';
   import { loadSettings } from '$lib/settings';
+  import { applyReview } from '$lib/srs';
+  import { evaluateMove } from '$lib/cloudEval';
 
   let { data } = $props();
 
@@ -110,27 +112,22 @@
       return;
     }
 
-    // Ask server to check via cloud eval
+    // Check via Lichess cloud eval directly from the browser
     phase = 'evaluating';
     message = 'Checking…';
     board?.lock();
 
     try {
-      const res = await fetch('/api/cloud-eval', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fen: currentFen, move: uci })
-      });
-      const json = await res.json();
+      const verdict = await evaluateMove(currentFen, uci);
 
-      if (json.accepted) {
-        const suffix = json.centipawn_loss ? ` (−${json.centipawn_loss}cp)` : '';
+      if (verdict.accepted) {
+        const suffix = verdict.centipawn_loss ? ` (−${verdict.centipawn_loss}cp)` : '';
         updatePosition(applyUci(currentFen, uci) ?? currentFen, uci);
         showBlunderArrow();
         complete(`Good enough!${suffix}`);
       } else {
         phase = 'playing';
-        wrongMove(json.reason ?? 'Not accurate enough. Try again.');
+        wrongMove(verdict.reason ?? 'Not accurate enough. Try again.');
       }
     } catch {
       phase = 'playing';
@@ -224,13 +221,9 @@
   }
 
   async function next() {
-    if (pendingRating === null) return;
+    if (pendingRating === null || card.id === undefined) return;
     countdown = null;
-    await fetch('/api/review', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cardId: card.id, rating: pendingRating, durationMs: Date.now() - startedAt })
-    });
+    await applyReview(card.id, pendingRating, null, true, null, Date.now() - startedAt);
     window.location.reload();
   }
 

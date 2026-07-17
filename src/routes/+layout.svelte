@@ -1,9 +1,15 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { requestPersistentStorage } from '$lib/db';
 
   let { data, children }: { data: { configured: boolean }; children: Snippet } = $props();
+
+  // Ask the browser to keep our IndexedDB data durable (reduces eviction risk).
+  onMount(() => {
+    if (data.configured) requestPersistentStorage();
+  });
 
   let menuOpen = $state(false);
 

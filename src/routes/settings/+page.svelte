@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { loadSettings, saveSettings, DEFAULTS, type Settings } from '$lib/settings';
+  import { getMeta, setMeta } from '$lib/db';
 
   let s = $state<Settings>({ ...DEFAULTS });
   let newCardsPerDay = $state(20);
@@ -8,9 +9,7 @@
 
   onMount(async () => {
     s = loadSettings();
-    const res = await fetch('/api/settings');
-    const json = await res.json();
-    newCardsPerDay = json.newCardsPerDay;
+    newCardsPerDay = parseInt((await getMeta('new_cards_per_day')) ?? '20') || 0;
   });
 
   function save() { saveSettings({ ...s }); }
@@ -18,11 +17,8 @@
   async function saveLimit() {
     savingLimit = true;
     try {
-      await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newCardsPerDay })
-      });
+      const val = Math.max(0, Math.floor(newCardsPerDay));
+      await setMeta('new_cards_per_day', String(val));
     } finally {
       savingLimit = false;
     }
