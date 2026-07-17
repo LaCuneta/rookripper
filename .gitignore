@@ -2,3 +2,6 @@
 node_modules/
 build/
 
+# Personal SRS backup/export files
+srs-backup.json
+*.srs-backup.json
