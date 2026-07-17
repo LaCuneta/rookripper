@@ -3,7 +3,7 @@ export type Judgment = 'Blunder' | 'Mistake' | 'Inaccuracy';
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 
 export interface Card {
-  id: number;
+  id?: number; // assigned by Dexie on insert; always present once persisted
   source: CardSource;
 
   lichess_puzzle_id: string | null;
@@ -36,14 +36,46 @@ export interface Card {
   added_at: number;
 }
 
+export interface ReviewLog {
+  id?: number;
+  card_id: number;
+  reviewed_at: number;
+  rating: number;
+  user_move: string | null;
+  move_accepted: number; // 0 | 1
+  centipawn_loss: number | null;
+  duration_ms: number | null;
+}
+
+export interface MetaRow {
+  key: string;
+  value: string;
+}
+
+export interface SyncLogRow {
+  id?: number;
+  sync_type: 'puzzles' | 'games';
+  started_at: number;
+  completed_at: number | null;
+  items_fetched: number | null;
+  items_added: number | null;
+  error: string | null;
+}
+
 export interface DueStats {
   due: number;
   new: number;
   learning: number;
 }
 
-export interface SyncStatus {
-  last_puzzle_sync: number | null;
-  last_game_sync: number | null;
-  recent_errors: string[];
+// JSON backup / export format. Emitted by scripts/dump-sql-to-json.mjs and by
+// src/lib/export.ts; consumed by importData(). `meta` carries only sync cursors
+// and limits — never the access token.
+export interface Backup {
+  version: 1;
+  app: 'rookripper';
+  exportedAt: number;
+  cards: Card[];
+  reviewLog: ReviewLog[];
+  meta: Record<string, string>;
 }
