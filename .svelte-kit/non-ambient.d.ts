@@ -29,23 +29,17 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/api" | "/api/cloud-eval" | "/api/inject-new" | "/api/review" | "/api/settings" | "/api/sync" | "/review" | "/settings" | "/setup";
+		RouteId(): "/" | "/review" | "/settings" | "/setup";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
-			"/api": Record<string, never>;
-			"/api/cloud-eval": Record<string, never>;
-			"/api/inject-new": Record<string, never>;
-			"/api/review": Record<string, never>;
-			"/api/settings": Record<string, never>;
-			"/api/sync": Record<string, never>;
 			"/review": Record<string, never>;
 			"/settings": Record<string, never>;
 			"/setup": Record<string, never>
 		};
-		Pathname(): "/" | "/api/cloud-eval" | "/api/inject-new" | "/api/review" | "/api/settings" | "/api/sync" | "/review" | "/settings" | "/setup";
+		Pathname(): "/" | "/review" | "/settings" | "/setup";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/icons/icon-192.png" | "/icons/icon-512.png" | "/icons/icon.svg" | string & {};
 	}

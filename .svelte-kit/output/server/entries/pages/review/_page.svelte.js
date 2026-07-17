@@ -1,9 +1,20 @@
-import { K as bind_props, a7 as run, _ as head, V as escape_html, J as attr_class } from "../../../chunks/renderer.js";
+import { N as bind_props, a8 as run, $ as head, X as escape_html, G as attr, J as attr_class, Q as derived } from "../../../chunks/renderer.js";
 import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
 import { chessgroundDests } from "chessops/compat";
 import "chessground";
+import { l as loadSettings } from "../../../chunks/settings.js";
+import { a as applyReview } from "../../../chunks/srs.js";
+import "../../../chunks/db.js";
+const BASE = "https://lichess.org";
+async function cloudEval(fen, multiPv = 3) {
+  const params = new URLSearchParams({ fen, multiPv: String(multiPv) });
+  const res = await fetch(`${BASE}/api/cloud-eval?${params}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Cloud eval: ${res.status}`);
+  return res.json();
+}
 function ChessBoard($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
     let {
@@ -13,19 +24,62 @@ function ChessBoard($$renderer, $$props) {
       lastMove,
       dests,
       interactive = true,
-      onMove
+      onMove,
+      version = 0
     } = $$props;
     let el;
-    function setPosition(newFen, newLastMove, newDests) {
-    }
     function lock() {
     }
     function shake() {
       setTimeout(() => el?.classList.remove("wrong"), 600);
     }
+    function highlightSquare(square) {
+    }
+    function setShapes(shapes) {
+    }
+    function clearShapes() {
+    }
     $$renderer2.push(`<div class="cg-wrap svelte-sb3f9s"></div>`);
-    bind_props($$props, { setPosition, lock, shake });
+    bind_props($$props, { lock, shake, highlightSquare, setShapes, clearShapes });
   });
+}
+const GOOD_ENOUGH_CP = 50;
+async function evaluateMove(fen, move) {
+  const origEval = await cloudEval(fen, 1);
+  if (!origEval) {
+    return { accepted: false, reason: "Position not in cloud eval database — exact move required." };
+  }
+  const bestCp = origEval.pvs[0]?.cp;
+  if (bestCp === void 0) {
+    const bestMove = origEval.pvs[0]?.moves?.split(" ")[0];
+    return { accepted: move === bestMove, reason: "Forced mate position." };
+  }
+  let userFen;
+  try {
+    const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
+    const uciMove = parseUci(move);
+    if (!uciMove) throw new Error("bad uci");
+    pos.play(uciMove);
+    userFen = makeFen(pos.toSetup());
+  } catch {
+    return { accepted: false, reason: "Invalid move for position." };
+  }
+  const userEval = await cloudEval(userFen, 1);
+  if (!userEval) {
+    return { accepted: false, reason: "Resulting position not in cloud eval — exact move required." };
+  }
+  const userCpAfter = userEval.pvs[0]?.cp;
+  if (userCpAfter === void 0) {
+    return { accepted: false, reason: "That walks into a forced mate." };
+  }
+  const userMoveCp = -userCpAfter;
+  const cpLoss = bestCp - userMoveCp;
+  const accepted = cpLoss <= GOOD_ENOUGH_CP;
+  return {
+    accepted,
+    centipawn_loss: cpLoss > 0 ? cpLoss : 0,
+    reason: accepted ? void 0 : `Loses ${cpLoss}cp vs best move (limit: ${GOOD_ENOUGH_CP}cp).`
+  };
 }
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
@@ -44,6 +98,13 @@ function _page($$renderer, $$props) {
     let phase = "playing";
     let message = "Find the best move.";
     let solutionIndex = 0;
+    let startedAt = Date.now();
+    let hadWrongAttempt = false;
+    let pendingRating = null;
+    let countdown = null;
+    let orientation = initialTurnColor;
+    let boardVersion = 0;
+    const settings = loadSettings();
     const solution = card.source === "puzzle" ? JSON.parse(card.solution_moves ?? "[]") : [];
     async function onMove(orig, dest) {
       if (phase !== "playing") return;
@@ -68,32 +129,29 @@ function _page($$renderer, $$props) {
       solutionIndex++;
       updatePosition(nextFen, uci);
       if (solutionIndex >= solution.length) {
-        phase = "complete";
-        message = "Solved!";
+        complete("Solved!");
         return;
       }
       const computerUci = solution[solutionIndex];
       await delay(350);
       const afterComputerFen = applyUci(nextFen, computerUci);
       if (!afterComputerFen) {
-        phase = "complete";
-        message = "Solved!";
+        complete("Solved!");
         return;
       }
       solutionIndex++;
       updatePosition(afterComputerFen, computerUci);
       if (solutionIndex >= solution.length) {
-        phase = "complete";
-        message = "Solved!";
+        complete("Solved!");
       } else {
         message = "Keep going.";
       }
     }
     async function handleGameMove(uci) {
       if (uci === card.best_move) {
-        phase = "complete";
-        message = "Best move!";
         updatePosition(applyUci(currentFen, uci) ?? currentFen, uci);
+        showBlunderArrow();
+        complete("Best move!");
         return;
       }
       if (uci === card.played_move) {
@@ -103,40 +161,28 @@ function _page($$renderer, $$props) {
       phase = "evaluating";
       message = "Checking…";
       try {
-        const res = await fetch("/api/cloud-eval", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fen: currentFen, move: uci })
-        });
-        const json = await res.json();
-        if (json.accepted) {
-          const suffix = json.centipawn_loss ? ` (−${json.centipawn_loss}cp)` : "";
-          phase = "complete";
-          message = `Good enough!${suffix}`;
+        const verdict = await evaluateMove(currentFen, uci);
+        if (verdict.accepted) {
+          const suffix = verdict.centipawn_loss ? ` (−${verdict.centipawn_loss}cp)` : "";
           updatePosition(applyUci(currentFen, uci) ?? currentFen, uci);
+          showBlunderArrow();
+          complete(`Good enough!${suffix}`);
         } else {
           phase = "playing";
-          wrongMove(json.reason ?? "Not accurate enough. Try again.");
-          resetBoard();
+          wrongMove(verdict.reason ?? "Not accurate enough. Try again.");
         }
       } catch {
         phase = "playing";
-        message = "Cloud eval unavailable — exact move required.";
         if (uci !== card.best_move) {
           wrongMove("Exact best move required (cloud eval offline).");
-          resetBoard();
         }
       }
     }
     function wrongMove(msg) {
+      hadWrongAttempt = true;
       message = msg;
+      boardVersion++;
       phase = "playing";
-      resetBoard();
-    }
-    function resetBoard() {
-      currentFen = card.fen;
-      currentLastMove = card.last_move ? [card.last_move.slice(0, 2), card.last_move.slice(2, 4)] : void 0;
-      recomputeDests(card.fen);
     }
     function updatePosition(fen, uciMove) {
       currentFen = fen;
@@ -151,6 +197,37 @@ function _page($$renderer, $$props) {
       } catch {
         dests = /* @__PURE__ */ new Map();
       }
+    }
+    function showBlunderArrow() {
+      const pm = card.played_move;
+      if (!pm || pm.length < 4) return;
+    }
+    function complete(msg, forcedRating) {
+      phase = "complete";
+      message = msg;
+      pendingRating = computeRating();
+      if (settings.autoNext) startCountdown(settings.autoNextSeconds);
+    }
+    function computeRating() {
+      if (hadWrongAttempt) return 2;
+      if (Date.now() - startedAt < settings.easyThresholdMinutes * 60 * 1e3) return 4;
+      return 3;
+    }
+    async function startCountdown(totalSecs) {
+      let secs = totalSecs;
+      countdown = secs;
+      while (secs > 0) {
+        await delay(1e3);
+        secs--;
+        countdown = secs > 0 ? secs : null;
+      }
+      await next();
+    }
+    async function next() {
+      if (pendingRating === null || card.id === void 0) return;
+      countdown = null;
+      await applyReview(card.id, pendingRating, null, true, null, Date.now() - startedAt);
+      window.location.reload();
     }
     function applyUci(fen, uci) {
       try {
@@ -169,11 +246,25 @@ function _page($$renderer, $$props) {
     function delay(ms) {
       return new Promise((r) => setTimeout(r, ms));
     }
-    function sourceLabel() {
+    const RATING_LABELS = { 1: "Again", 2: "Hard", 3: "Good", 4: "Easy" };
+    const ratingLabel = derived(() => pendingRating !== null ? RATING_LABELS[pendingRating] : "");
+    const sourceLabel = derived(computeSourceLabel);
+    function computeSourceLabel() {
+      const revealed = settings.showCardType || phase === "complete";
       if (card.source === "puzzle") {
-        return `Puzzle ${card.lichess_puzzle_id} · Rating ${card.puzzle_rating}`;
+        const prefix = revealed ? "Puzzle " : "";
+        const showRating = settings.puzzleRating === "always" || settings.puzzleRating === "after" && phase === "complete";
+        const rating = showRating && card.puzzle_rating ? ` · Rating ${card.puzzle_rating}` : "";
+        return `${prefix}${card.lichess_puzzle_id}${rating}`;
       }
+      if (!revealed) return card.lichess_game_id ?? "";
       return `Game ${card.lichess_game_id} · move ${(card.game_move_number ?? 0) + 1} · ${card.judgment}`;
+    }
+    function lichessUrl() {
+      if (card.source === "puzzle") {
+        return `https://lichess.org/training/${card.lichess_puzzle_id}`;
+      }
+      return `https://lichess.org/${card.lichess_game_id}#${card.game_move_number ?? 0}`;
     }
     head("1mr7uv1", $$renderer2, ($$renderer3) => {
       $$renderer3.title(($$renderer4) => {
@@ -183,21 +274,29 @@ function _page($$renderer, $$props) {
     $$renderer2.push(`<div class="review svelte-1mr7uv1">`);
     ChessBoard($$renderer2, {
       fen: currentFen,
-      orientation: turnColor,
+      orientation,
       turnColor,
       lastMove: currentLastMove,
       dests,
       interactive: phase === "playing",
-      onMove
+      onMove,
+      version: boardVersion
     });
-    $$renderer2.push(`<!----> <div class="info svelte-1mr7uv1"><div class="source svelte-1mr7uv1">${escape_html(sourceLabel())}</div> <div${attr_class("message svelte-1mr7uv1", void 0, { "correct": phase === "complete", "wrong": phase === "wrong" })}>${escape_html(message)}</div></div> `);
-    if (phase === "complete") {
+    $$renderer2.push(`<!----> <div class="side svelte-1mr7uv1"><div class="info svelte-1mr7uv1"><div class="source svelte-1mr7uv1">${escape_html(sourceLabel())} <a${attr("href", lichessUrl())} target="_blank" rel="noopener noreferrer" class="lichess-link svelte-1mr7uv1">Open on Lichess ↗</a></div> <div${attr_class("message svelte-1mr7uv1", void 0, { "correct": phase === "complete" })}>${escape_html(message)}</div></div> `);
+    if (phase === "playing") {
       $$renderer2.push("<!--[0-->");
-      $$renderer2.push(`<div class="rating-buttons svelte-1mr7uv1"><p class="rating-prompt svelte-1mr7uv1">How well did you recall this?</p> <div class="buttons svelte-1mr7uv1"><button class="again svelte-1mr7uv1">Again</button> <button class="hard svelte-1mr7uv1">Hard</button> <button class="good svelte-1mr7uv1">Good</button> <button class="easy svelte-1mr7uv1">Easy</button></div></div>`);
+      $$renderer2.push(`<div class="action-buttons svelte-1mr7uv1"><button class="hint-btn svelte-1mr7uv1">Hint</button> <button class="giveup-btn svelte-1mr7uv1">Give Up</button></div>`);
     } else {
       $$renderer2.push("<!--[-1-->");
     }
-    $$renderer2.push(`<!--]--></div>`);
+    $$renderer2.push(`<!--]--> `);
+    if (phase === "complete") {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<div class="action-buttons svelte-1mr7uv1"><span class="rating-label svelte-1mr7uv1"${attr("data-rating", ratingLabel())}>${escape_html(ratingLabel())}</span> <button class="next-btn svelte-1mr7uv1">${escape_html(countdown !== null ? `Next in ${countdown}s` : "Next →")}</button></div>`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]--></div></div>`);
   });
 }
 export {

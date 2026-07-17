@@ -1,18 +1,17 @@
 import { E as ENDPOINT_METHODS, P as PAGE_METHODS, r as negotiate, q as method_not_allowed, m as handle_error_and_jsonify, l as get_status, p as is_form_content_type, t as normalize_error, d as create_replacer, j as get_global_name, y as serialize_uses, c as clarify_devalue_error, k as get_node_type, s as noop, g as escape_html, S as SVELTE_KIT_ASSETS, b as create_remote_key, B as static_error_page, x as redirect_response, w as parse_remote_arg, C as stringify, f as deserialize_binary_form, A as split_remote_key, v as once, o as has_prerendered_path, T as TRAILING_SLASH_PARAM, I as INVALIDATED_PARAM, n as handle_fatal_error, i as format_server_error } from "./chunks/shared.js";
-import { D as DEV } from "./chunks/false.js";
+import { B as BROWSER } from "./chunks/false.js";
 import { json, text, isRedirect, error } from "@sveltejs/kit";
 import { Redirect, SvelteKitError, ActionFailure, HttpError } from "@sveltejs/kit/internal";
 import { with_request_store, merge_tracing, try_get_request_store } from "@sveltejs/kit/internal/server";
-import { b as assets, c as base, r as relative, o as override, d as reset, a as app_dir } from "./chunks/environment.js";
+import { b as assets, c as base, r as relative, o as override, d as reset, a as app_dir } from "./chunks/server.js";
 import * as devalue from "devalue";
-import { m as make_trackable, b as disable_search, d as decode_params, S as SCHEME, c as validate_layout_server_exports, v as validate_layout_exports, f as validate_page_server_exports, e as validate_page_exports, n as normalize_path, r as resolve, a as decode_pathname, g as validate_server_exports } from "./chunks/exports.js";
+import { m as make_trackable, b as disable_search, d as decode_params, S as SCHEME, n as normalize_path, r as resolve, a as decode_pathname } from "./chunks/url.js";
 import { a as base64_encode, t as text_encoder, g as get_relative_path } from "./chunks/utils.js";
 import "clsx";
-import { w as writable, r as readable } from "./chunks/index.js";
-import { a as public_env, s as set_private_env, b as set_public_env } from "./chunks/shared-server.js";
+import { w as writable, r as readable, a as validate_layout_server_exports, v as validate_layout_exports, c as validate_page_server_exports, b as validate_page_exports, d as validate_server_exports } from "./chunks/exports.js";
+import { p as public_env, r as read_implementation, o as options, a as set_private_env, b as set_public_env, g as get_hooks, c as set_read_implementation } from "./chunks/internal.js";
 import { parse, serialize } from "cookie";
 import * as set_cookie_parser from "set-cookie-parser";
-import { r as read_implementation, o as options, g as get_hooks, a as set_read_implementation } from "./chunks/internal.js";
 function with_resolvers() {
   let resolve2;
   let reject;
@@ -210,7 +209,7 @@ async function handle_action_json_request(event, event_state, options2, server) 
   check_named_default_separate(actions);
   try {
     const data = await call_action(event, event_state, actions);
-    if (DEV) ;
+    if (BROWSER) ;
     if (data instanceof ActionFailure) {
       return action_json({
         type: "failure",
@@ -295,7 +294,7 @@ async function handle_action_request(event, event_state, server) {
   check_named_default_separate(actions);
   try {
     const data = await call_action(event, event_state, actions);
-    if (DEV) ;
+    if (BROWSER) ;
     if (data instanceof ActionFailure) {
       return {
         type: "failure",
@@ -1607,7 +1606,7 @@ async function render_response({
     };
     const fetch2 = globalThis.fetch;
     try {
-      if (DEV) ;
+      if (BROWSER) ;
       const state2 = { ...event_state, is_in_render: true };
       rendered = await with_request_store({ event, state: state2 }, async () => {
         if (relative) override({ base: base$1, assets: assets$1 });
@@ -2609,7 +2608,7 @@ async function render_page(event, event_state, page, options2, manifest, state, 
     const ssr = nodes.ssr();
     const csr = nodes.csr();
     if (ssr === false && !(state.prerendering && should_prerender_data)) {
-      if (DEV && action_result && !event.request.headers.has("x-sveltekit-action")) ;
+      if (BROWSER && action_result && !event.request.headers.has("x-sveltekit-action")) ;
       return await render_response({
         // provide nodes without running load functions so that the styles and
         // fonts are linked in the head before CSR takes over
@@ -3499,12 +3498,12 @@ async function internal_respond(request, options2, manifest, state) {
       if (url.pathname === base || url.pathname === base + "/") {
         trailing_slash = "always";
       } else if (page_nodes) {
-        if (DEV) ;
+        if (BROWSER) ;
         trailing_slash = page_nodes.trailing_slash();
       } else if (route.endpoint) {
         const node = await route.endpoint();
         trailing_slash = node.trailingSlash ?? "never";
-        if (DEV) ;
+        if (BROWSER) ;
       }
       if (!is_data_request) {
         const normalized = normalize_path(url.pathname, trailing_slash);

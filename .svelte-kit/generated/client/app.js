@@ -9,13 +9,13 @@ export const nodes = [
 	() => import('./nodes/5')
 ];
 
-export const server_loads = [0];
+export const server_loads = [];
 
 export const dictionary = {
-		"/": [~2],
-		"/review": [~3],
+		"/": [2],
+		"/review": [3],
 		"/settings": [4],
-		"/setup": [~5]
+		"/setup": [5]
 	};
 
 export const hooks = {

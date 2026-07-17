@@ -7,16 +7,24 @@
     "imports": [
       "_root.js",
       "_environment.js",
-      "_internal.js",
-      "_shared-server.js"
+      "_server.js",
+      "_internal.js"
+    ]
+  },
+  "_client.js": {
+    "file": "chunks/client.js",
+    "name": "client",
+    "imports": [
+      "_renderer.js",
+      "_url.js",
+      "_root.js",
+      "_utils.js",
+      "_exports.js"
     ]
   },
   "_db.js": {
     "file": "chunks/db.js",
-    "name": "db",
-    "imports": [
-      "_shared-server.js"
-    ]
+    "name": "db"
   },
   "_environment.js": {
     "file": "chunks/environment.js",
@@ -24,7 +32,11 @@
   },
   "_exports.js": {
     "file": "chunks/exports.js",
-    "name": "exports"
+    "name": "exports",
+    "imports": [
+      "_renderer.js",
+      "_root.js"
+    ]
   },
   "_false.js": {
     "file": "chunks/false.js",
@@ -34,8 +46,8 @@
     "file": "chunks/index.js",
     "name": "index",
     "imports": [
-      "_renderer.js",
-      "_root.js"
+      "_client.js",
+      "_renderer.js"
     ]
   },
   "_internal.js": {
@@ -44,14 +56,7 @@
     "imports": [
       "_root.js",
       "_environment.js",
-      "_shared-server.js"
-    ]
-  },
-  "_lichess.js": {
-    "file": "chunks/lichess.js",
-    "name": "lichess",
-    "imports": [
-      "_db.js"
+      "_server.js"
     ]
   },
   "_render-context.js": {
@@ -73,9 +78,13 @@
       "_false.js"
     ]
   },
-  "_shared-server.js": {
-    "file": "chunks/shared-server.js",
-    "name": "shared-server"
+  "_server.js": {
+    "file": "chunks/server.js",
+    "name": "server"
+  },
+  "_settings.js": {
+    "file": "chunks/settings.js",
+    "name": "settings"
   },
   "_shared.js": {
     "file": "chunks/shared.js",
@@ -92,14 +101,9 @@
       "_db.js"
     ]
   },
-  "_state.svelte.js": {
-    "file": "chunks/state.svelte.js",
-    "name": "state.svelte",
-    "imports": [
-      "_renderer.js",
-      "_exports.js",
-      "_root.js"
-    ]
+  "_url.js": {
+    "file": "chunks/url.js",
+    "name": "url"
   },
   "_utils.js": {
     "file": "chunks/utils.js",
@@ -113,6 +117,7 @@
     "imports": [
       "_shared.js",
       "_false.js",
+      "_server.js",
       "_environment.js"
     ]
   },
@@ -123,11 +128,7 @@
     "isEntry": true,
     "imports": [
       "_renderer.js",
-      "_state.svelte.js",
-      "_exports.js",
-      "_utils.js",
-      "_index.js",
-      "_root.js"
+      "_index.js"
     ]
   },
   "node_modules/@sveltejs/kit/src/runtime/server/index.js": {
@@ -138,21 +139,11 @@
     "imports": [
       "_shared.js",
       "_false.js",
-      "_environment.js",
-      "_exports.js",
+      "_server.js",
+      "_url.js",
       "_utils.js",
-      "_index.js",
-      "_shared-server.js",
+      "_exports.js",
       "_internal.js"
-    ]
-  },
-  "src/routes/+layout.server.ts": {
-    "file": "entries/pages/_layout.server.ts.js",
-    "name": "entries/pages/_layout.server.ts",
-    "src": "src/routes/+layout.server.ts",
-    "isEntry": true,
-    "imports": [
-      "_db.js"
     ]
   },
   "src/routes/+layout.svelte": {
@@ -160,18 +151,26 @@
     "name": "entries/pages/_layout.svelte",
     "src": "src/routes/+layout.svelte",
     "isEntry": true,
+    "imports": [
+      "_renderer.js",
+      "_client.js",
+      "_index.js",
+      "_db.js"
+    ],
     "css": [
-      "_app/immutable/assets/_layout.DDbjTT3f.css"
+      "_app/immutable/assets/_layout.BzTSNHaK.css"
     ]
   },
-  "src/routes/+page.server.ts": {
-    "file": "entries/pages/_page.server.ts.js",
-    "name": "entries/pages/_page.server.ts",
-    "src": "src/routes/+page.server.ts",
+  "src/routes/+layout.ts": {
+    "file": "entries/pages/_layout.ts.js",
+    "name": "entries/pages/_layout.ts",
+    "src": "src/routes/+layout.ts",
     "isEntry": true,
     "imports": [
-      "_db.js",
-      "_srs.js"
+      "_server.js",
+      "_url.js",
+      "_root.js",
+      "_db.js"
     ]
   },
   "src/routes/+page.svelte": {
@@ -180,46 +179,21 @@
     "src": "src/routes/+page.svelte",
     "isEntry": true,
     "imports": [
-      "_renderer.js"
+      "_renderer.js",
+      "_db.js",
+      "_srs.js"
     ],
     "css": [
-      "_app/immutable/assets/_page.CvmuVjqN.css"
+      "_app/immutable/assets/_page.BjqUYziJ.css"
     ]
   },
-  "src/routes/api/cloud-eval/+server.ts": {
-    "file": "entries/endpoints/api/cloud-eval/_server.ts.js",
-    "name": "entries/endpoints/api/cloud-eval/_server.ts",
-    "src": "src/routes/api/cloud-eval/+server.ts",
-    "isEntry": true,
-    "imports": [
-      "_lichess.js"
-    ]
-  },
-  "src/routes/api/review/+server.ts": {
-    "file": "entries/endpoints/api/review/_server.ts.js",
-    "name": "entries/endpoints/api/review/_server.ts",
-    "src": "src/routes/api/review/+server.ts",
-    "isEntry": true,
-    "imports": [
-      "_srs.js"
-    ]
-  },
-  "src/routes/api/sync/+server.ts": {
-    "file": "entries/endpoints/api/sync/_server.ts.js",
-    "name": "entries/endpoints/api/sync/_server.ts",
-    "src": "src/routes/api/sync/+server.ts",
+  "src/routes/+page.ts": {
+    "file": "entries/pages/_page.ts.js",
+    "name": "entries/pages/_page.ts",
+    "src": "src/routes/+page.ts",
     "isEntry": true,
     "imports": [
       "_db.js",
-      "_lichess.js"
-    ]
-  },
-  "src/routes/review/+page.server.ts": {
-    "file": "entries/pages/review/_page.server.ts.js",
-    "name": "entries/pages/review/_page.server.ts",
-    "src": "src/routes/review/+page.server.ts",
-    "isEntry": true,
-    "imports": [
       "_srs.js"
     ]
   },
@@ -229,21 +203,46 @@
     "src": "src/routes/review/+page.svelte",
     "isEntry": true,
     "imports": [
-      "_renderer.js"
+      "_renderer.js",
+      "_settings.js",
+      "_srs.js",
+      "_db.js"
     ],
     "css": [
-      "_app/immutable/assets/_page.bTVYt8mg.css"
+      "_app/immutable/assets/_page.Bmfw_KkI.css"
     ]
   },
-  "src/routes/setup/+page.server.ts": {
-    "file": "entries/pages/setup/_page.server.ts.js",
-    "name": "entries/pages/setup/_page.server.ts",
-    "src": "src/routes/setup/+page.server.ts",
+  "src/routes/review/+page.ts": {
+    "file": "entries/pages/review/_page.ts.js",
+    "name": "entries/pages/review/_page.ts",
+    "src": "src/routes/review/+page.ts",
     "isEntry": true,
     "imports": [
-      "_db.js",
-      "_lichess.js"
+      "_server.js",
+      "_url.js",
+      "_root.js",
+      "_srs.js"
     ]
+  },
+  "src/routes/settings/+page.svelte": {
+    "file": "entries/pages/settings/_page.svelte.js",
+    "name": "entries/pages/settings/_page.svelte",
+    "src": "src/routes/settings/+page.svelte",
+    "isEntry": true,
+    "imports": [
+      "_renderer.js",
+      "_settings.js",
+      "_db.js"
+    ],
+    "css": [
+      "_app/immutable/assets/_page.DFa1z-5b.css"
+    ]
+  },
+  "src/routes/settings/+page.ts": {
+    "file": "entries/pages/settings/_page.ts.js",
+    "name": "entries/pages/settings/_page.ts",
+    "src": "src/routes/settings/+page.ts",
+    "isEntry": true
   },
   "src/routes/setup/+page.svelte": {
     "file": "entries/pages/setup/_page.svelte.js",
@@ -252,13 +251,15 @@
     "isEntry": true,
     "imports": [
       "_renderer.js",
-      "_exports.js",
+      "_url.js",
       "_utils.js",
       "_root.js",
-      "_state.svelte.js"
+      "_exports.js",
+      "_client.js",
+      "_db.js"
     ],
     "css": [
-      "_app/immutable/assets/_page.Bhgee8dh.css"
+      "_app/immutable/assets/_page.CRE3dEzJ.css"
     ]
   }
 }

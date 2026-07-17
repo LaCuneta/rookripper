@@ -1,5 +1,5 @@
 import { fsrs, State } from "ts-fsrs";
-import { d as db } from "./db.js";
+import { d as db, g as getMeta } from "./db.js";
 const scheduler = fsrs();
 function toFSRS(card) {
   const stateMap = {
@@ -28,56 +28,74 @@ function stateLabel(s) {
     [State.Relearning]: "relearning"
   }[s] ?? "new";
 }
-function applyReview(cardId, rating, userMove, moveAccepted, centipawnLoss, durationMs) {
-  const card = db.prepare("SELECT * FROM cards WHERE id = ?").get(cardId);
-  if (!card) throw new Error(`Card ${cardId} not found`);
-  const scheduling = scheduler.repeat(toFSRS(card), /* @__PURE__ */ new Date());
-  const next = scheduling[rating].card;
-  const now = Date.now();
-  db.transaction(() => {
-    db.prepare(`
-      UPDATE cards SET
-        due              = ?,
-        stability        = ?,
-        difficulty       = ?,
-        elapsed_days     = ?,
-        scheduled_days   = ?,
-        reps             = ?,
-        lapses           = ?,
-        state            = ?,
-        last_reviewed_at = ?
-      WHERE id = ?
-    `).run(
-      next.due.getTime(),
-      next.stability,
-      next.difficulty,
-      next.elapsed_days,
-      next.scheduled_days,
-      next.reps,
-      next.lapses,
-      stateLabel(next.state),
-      now,
-      cardId
-    );
-    db.prepare(`
-      INSERT INTO review_log
-        (card_id, reviewed_at, rating, user_move, move_accepted, centipawn_loss, duration_ms)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(cardId, now, rating, userMove, moveAccepted ? 1 : 0, centipawnLoss, durationMs);
-  })();
+async function applyReview(cardId, rating, userMove, moveAccepted, centipawnLoss, durationMs) {
+  await db.transaction("rw", db.cards, db.reviewLog, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card) throw new Error(`Card ${cardId} not found`);
+    const next = scheduler.repeat(toFSRS(card), /* @__PURE__ */ new Date())[rating].card;
+    const now = Date.now();
+    await db.cards.update(cardId, {
+      due: next.due.getTime(),
+      stability: next.stability,
+      difficulty: next.difficulty,
+      elapsed_days: next.elapsed_days,
+      scheduled_days: next.scheduled_days,
+      reps: next.reps,
+      lapses: next.lapses,
+      state: stateLabel(next.state),
+      last_reviewed_at: now
+    });
+    await db.reviewLog.add({
+      card_id: cardId,
+      reviewed_at: now,
+      rating,
+      user_move: userMove,
+      move_accepted: 1,
+      centipawn_loss: centipawnLoss,
+      duration_ms: durationMs
+    });
+  });
 }
-function getDueCard() {
-  return db.prepare("SELECT * FROM cards WHERE due <= ? ORDER BY due ASC LIMIT 1").get(Date.now()) ?? null;
+async function getNewCardInfo() {
+  const dailyLimit = parseInt(await getMeta("new_cards_per_day") ?? "20") || 0;
+  const today = /* @__PURE__ */ new Date();
+  today.setHours(0, 0, 0, 0);
+  const startOfDay = today.getTime();
+  const dateStr = today.toISOString().slice(0, 10);
+  let extraToday = 0;
+  const extraRaw = await getMeta("extra_new_today");
+  if (extraRaw) {
+    const [d, n] = extraRaw.split(":");
+    if (d === dateStr) extraToday = parseInt(n) || 0;
+  }
+  const usedToday = await db.cards.filter((c) => c.reps === 1 && (c.last_reviewed_at ?? 0) >= startOfDay).count();
+  const limit = dailyLimit === 0 ? Infinity : dailyLimit + extraToday;
+  return { limit, usedToday, dailyLimit, extraToday, startOfDay };
 }
-function getDueStats() {
+async function getDueCard(source) {
   const now = Date.now();
-  const due = db.prepare("SELECT COUNT(*) as n FROM cards WHERE due <= ?").get(now).n;
-  const newCards = db.prepare("SELECT COUNT(*) as n FROM cards WHERE state = 'new'").get().n;
-  const learning = db.prepare("SELECT COUNT(*) as n FROM cards WHERE state IN ('learning','relearning')").get().n;
-  return { due, new: newCards, learning };
+  const { limit, usedToday } = await getNewCardInfo();
+  const allowNew = usedToday < limit;
+  const candidates = await db.cards.where("due").belowOrEqual(now).filter((c) => {
+    if (source && c.source !== source) return false;
+    if (!allowNew && c.state === "new") return false;
+    return true;
+  }).toArray();
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+async function getDueStats() {
+  const now = Date.now();
+  const dueNonNew = await db.cards.where("due").belowOrEqual(now).filter((c) => c.state !== "new").count();
+  const newCards = await db.cards.where("state").equals("new").count();
+  const learning = await db.cards.filter((c) => c.state === "learning" || c.state === "relearning").count();
+  const { limit, usedToday } = await getNewCardInfo();
+  const newAllowed = limit === Infinity ? newCards : Math.max(0, Math.min(newCards, limit - usedToday));
+  return { due: dueNonNew + newAllowed, new: newCards, learning };
 }
 export {
   applyReview as a,
   getDueStats as b,
+  getNewCardInfo as c,
   getDueCard as g
 };

@@ -1,5 +1,5 @@
-import { o as HYDRATION_ERROR, e as COMMENT_NODE, n as HYDRATION_END, p as HYDRATION_START, q as HYDRATION_START_ELSE, a8 as run_all, b as BOUNDARY_EFFECT, t as REACTION_RAN, m as ERROR_VALUE, j as EFFECT, f as CONNECTED, d as CLEAN, s as MAYBE_DIRTY, i as DIRTY, D as DERIVED, W as WAS_MARKED, I as INERT, B as BLOCK_EFFECT, U as UNINITIALIZED, A as ASYNC, g as DESTROYED, E as EAGER_EFFECT, N as deferred, u as RENDER_EFFECT, M as MANAGED_EFFECT, v as ROOT_EFFECT, c as BRANCH_EFFECT, $ as includes, r as HYDRATION_START_FAILED, l as EFFECT_TRANSPARENT, k as EFFECT_PRESERVED, S as STALE_REACTION, a4 as noop, R as REACTION_IS_UPDATING, w as STATE_SYMBOL, a5 as object_prototype, F as array_prototype, Y as get_descriptor, Z as get_prototype_of, a1 as is_array, a2 as is_extensible, C as CLASS_CACHE, a as ATTRIBUTES_CACHE, x as STYLE_CACHE, T as TEXT_CACHE, H as HEAD_EFFECT, h as DESTROYING, y as USER_EFFECT, a0 as index_of, O as define_property, z as array_from, a3 as is_passive_event, L as LEGACY_PROPS, a6 as render, a9 as setContext, P as derived } from "./renderer.js";
-import { D as DEV } from "./false.js";
+import { o as HYDRATION_ERROR, e as COMMENT_NODE, n as HYDRATION_END, p as HYDRATION_START, q as HYDRATION_START_ELSE, a9 as run_all, b as BOUNDARY_EFFECT, t as REACTION_RAN, m as ERROR_VALUE, j as EFFECT, f as CONNECTED, d as CLEAN, s as MAYBE_DIRTY, i as DIRTY, D as DERIVED, W as WAS_MARKED, I as INERT, B as BLOCK_EFFECT, U as UNINITIALIZED, A as ASYNC, g as DESTROYED, E as EAGER_EFFECT, O as deferred, u as RENDER_EFFECT, M as MANAGED_EFFECT, v as ROOT_EFFECT, c as BRANCH_EFFECT, a0 as includes, r as HYDRATION_START_FAILED, l as EFFECT_TRANSPARENT, k as EFFECT_PRESERVED, S as STALE_REACTION, a5 as noop, R as REACTION_IS_UPDATING, w as STATE_SYMBOL, a6 as object_prototype, F as array_prototype, Z as get_descriptor, _ as get_prototype_of, a2 as is_array, a3 as is_extensible, C as CLASS_CACHE, a as ATTRIBUTES_CACHE, x as STYLE_CACHE, T as TEXT_CACHE, H as HEAD_EFFECT, h as DESTROYING, y as USER_EFFECT, a1 as index_of, P as define_property, z as array_from, a4 as is_passive_event, L as LEGACY_PROPS, a7 as render, aa as setContext, Q as derived } from "./renderer.js";
+import { B as BROWSER } from "./false.js";
 let tracing_mode_flag = false;
 function effect_update_depth_exceeded() {
   {
@@ -607,7 +607,7 @@ class Batch {
   }
   flush() {
     try {
-      if (DEV) ;
+      if (BROWSER) ;
       is_processing = true;
       current_batch = this;
       this.#process();
@@ -2391,7 +2391,7 @@ function update_effect(effect) {
     effect.teardown = typeof teardown === "function" ? teardown : null;
     effect.wv = write_version;
     var dep;
-    if (DEV && tracing_mode_flag && (effect.f & DIRTY) !== 0 && effect.deps !== null) ;
+    if (BROWSER && tracing_mode_flag && (effect.f & DIRTY) !== 0 && effect.deps !== null) ;
   } finally {
     is_updating_effect = was_updating_effect;
     active_effect = previous_effect;

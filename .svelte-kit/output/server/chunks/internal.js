@@ -1,6 +1,12 @@
 import { r as root } from "./root.js";
 import "./environment.js";
-import "./shared-server.js";
+import "./server.js";
+let public_env = {};
+function set_private_env(environment) {
+}
+function set_public_env(environment) {
+  public_env = environment;
+}
 let read_implementation = null;
 function set_read_implementation(fn) {
   read_implementation = fn;
@@ -25,7 +31,7 @@ const options = {
   service_worker_options: void 0,
   server_error_boundaries: false,
   templates: {
-    app: ({ head, body, assets, nonce, env }) => '<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <link rel="icon" href="' + assets + '/icons/icon.svg" type="image/svg+xml" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <meta name="theme-color" content="#1a1a1a" />\n    <link rel="manifest" href="' + assets + '/manifest.webmanifest" />\n    ' + head + '\n  </head>\n  <body data-sveltekit-preload-data="hover">\n    <div style="display: contents">' + body + "</div>\n  </body>\n</html>\n",
+    app: ({ head, body, assets, nonce, env }) => '<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <link rel="icon" href="' + assets + '/icons/icon.svg" type="image/svg+xml" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <meta name="theme-color" content="#1a1a1a" />\n' + head + '\n  </head>\n  <body data-sveltekit-preload-data="hover">\n    <div style="display: contents">' + body + "</div>\n  </body>\n</html>\n",
     error: ({ status, message }) => '<!doctype html>\n<html lang="en">\n	<head>\n		<meta charset="utf-8" />\n		<title>' + message + `</title>
 
 		<style>
@@ -97,7 +103,7 @@ const options = {
 		<div class="error">
 			<span class="status">` + status + '</span>\n			<div class="message">\n				<h1>' + message + "</h1>\n			</div>\n		</div>\n	</body>\n</html>\n"
   },
-  version_hash: "l6ipir"
+  version_hash: "179yizc"
 };
 async function get_hooks() {
   let handle;
@@ -118,9 +124,12 @@ async function get_hooks() {
   };
 }
 export {
-  set_read_implementation as a,
+  set_private_env as a,
+  set_public_env as b,
+  set_read_implementation as c,
   get_hooks as g,
   options as o,
+  public_env as p,
   read_implementation as r,
   set_manifest as s
 };

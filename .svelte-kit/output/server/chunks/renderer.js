@@ -374,9 +374,16 @@ function attributes(attrs, css_hash, classes, styles, flags = 0) {
   }
   return attr_str;
 }
+function stringify(value) {
+  return typeof value === "string" ? value : value == null ? "" : value + "";
+}
 function attr_class(value, hash, directives) {
   var result = to_class(value, hash, directives);
   return result ? ` class="${escape_html(result, true)}"` : "";
+}
+function attr_style(value, directives) {
+  var result = to_style(value, directives);
+  return result ? ` style="${escape_html(result, true)}"` : "";
 }
 function bind_props(props_parent, props_now) {
   for (const key of Object.keys(props_now)) {
@@ -1185,7 +1192,7 @@ class SSRState {
   }
 }
 export {
-  includes as $,
+  head as $,
   ASYNC as A,
   BLOCK_EFFECT as B,
   CLASS_CACHE as C,
@@ -1196,34 +1203,36 @@ export {
   HEAD_EFFECT as H,
   INERT as I,
   attr_class as J,
-  bind_props as K,
+  attr_style as K,
   LEGACY_PROPS as L,
   MANAGED_EFFECT as M,
-  deferred as N,
-  define_property as O,
-  derived as P,
-  ensure_array_like as Q,
+  bind_props as N,
+  deferred as O,
+  define_property as P,
+  derived as Q,
   REACTION_IS_UPDATING as R,
   STALE_REACTION as S,
   TEXT_CACHE as T,
   UNINITIALIZED as U,
-  escape_html as V,
+  ensure_array_like as V,
   WAS_MARKED as W,
-  getContext as X,
-  get_descriptor as Y,
-  get_prototype_of as Z,
-  head as _,
+  escape_html as X,
+  getContext as Y,
+  get_descriptor as Z,
+  get_prototype_of as _,
   ATTRIBUTES_CACHE as a,
-  index_of as a0,
-  is_array as a1,
-  is_extensible as a2,
-  is_passive_event as a3,
-  noop as a4,
-  object_prototype as a5,
-  render as a6,
-  run as a7,
-  run_all as a8,
-  setContext as a9,
+  includes as a0,
+  index_of as a1,
+  is_array as a2,
+  is_extensible as a3,
+  is_passive_event as a4,
+  noop as a5,
+  object_prototype as a6,
+  render as a7,
+  run as a8,
+  run_all as a9,
+  setContext as aa,
+  stringify as ab,
   BOUNDARY_EFFECT as b,
   BRANCH_EFFECT as c,
   CLEAN as d,

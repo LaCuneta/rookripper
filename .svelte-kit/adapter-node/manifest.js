@@ -7,16 +7,17 @@ function __memo(fn) {
 return {
 	appDir: "_app",
 	appPath: "_app",
-	assets: new Set(["icons/icon.svg"]),
-	mimeTypes: {".svg":"image/svg+xml"},
+	assets: new Set(["icons/icon-192.png","icons/icon-512.png","icons/icon.svg"]),
+	mimeTypes: {".png":"image/png",".svg":"image/svg+xml"},
 	_: {
-		client: {start:"_app/immutable/entry/start.DIcwtc75.js",app:"_app/immutable/entry/app.B4FTrkpV.js",imports:["_app/immutable/entry/start.DIcwtc75.js","_app/immutable/chunks/t1syRg_V.js","_app/immutable/chunks/CcxYLlVR.js","_app/immutable/chunks/B3QZw0BC.js","_app/immutable/chunks/CifqU1td.js","_app/immutable/entry/app.B4FTrkpV.js","_app/immutable/chunks/B3QZw0BC.js","_app/immutable/chunks/CifqU1td.js","_app/immutable/chunks/Bzak7iHL.js","_app/immutable/chunks/CcxYLlVR.js","_app/immutable/chunks/Bzgqamca.js","_app/immutable/chunks/n5-L3qON.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
+		client: {start:"_app/immutable/entry/start.CAYrpEFt.js",app:"_app/immutable/entry/app.BhZW-UtZ.js",imports:["_app/immutable/entry/start.CAYrpEFt.js","_app/immutable/chunks/By8SQ_Tp.js","_app/immutable/chunks/DPMc_6a3.js","_app/immutable/chunks/B7XertQJ.js","_app/immutable/chunks/CIuliPtR.js","_app/immutable/entry/app.BhZW-UtZ.js","_app/immutable/chunks/DPMc_6a3.js","_app/immutable/chunks/BphQ8H0Y.js","_app/immutable/chunks/D1arq4CJ.js","_app/immutable/chunks/CIuliPtR.js","_app/immutable/chunks/DhC8X7tL.js","_app/immutable/chunks/BmW3aegm.js","_app/immutable/chunks/Dw1_Bbg0.js"],stylesheets:[],fonts:[],uses_env_dynamic_public:false},
 		nodes: [
 			__memo(() => import('./nodes/0.js')),
 			__memo(() => import('./nodes/1.js')),
 			__memo(() => import('./nodes/2.js')),
 			__memo(() => import('./nodes/3.js')),
-			__memo(() => import('./nodes/4.js'))
+			__memo(() => import('./nodes/4.js')),
+			__memo(() => import('./nodes/5.js'))
 		],
 		remotes: {
 			
@@ -30,27 +31,6 @@ return {
 				endpoint: null
 			},
 			{
-				id: "/api/cloud-eval",
-				pattern: /^\/api\/cloud-eval\/?$/,
-				params: [],
-				page: null,
-				endpoint: __memo(() => import('./entries/endpoints/api/cloud-eval/_server.ts.js'))
-			},
-			{
-				id: "/api/review",
-				pattern: /^\/api\/review\/?$/,
-				params: [],
-				page: null,
-				endpoint: __memo(() => import('./entries/endpoints/api/review/_server.ts.js'))
-			},
-			{
-				id: "/api/sync",
-				pattern: /^\/api\/sync\/?$/,
-				params: [],
-				page: null,
-				endpoint: __memo(() => import('./entries/endpoints/api/sync/_server.ts.js'))
-			},
-			{
 				id: "/review",
 				pattern: /^\/review\/?$/,
 				params: [],
@@ -58,10 +38,17 @@ return {
 				endpoint: null
 			},
 			{
+				id: "/settings",
+				pattern: /^\/settings\/?$/,
+				params: [],
+				page: { layouts: [0,], errors: [1,], leaf: 4 },
+				endpoint: null
+			},
+			{
 				id: "/setup",
 				pattern: /^\/setup\/?$/,
 				params: [],
-				page: { layouts: [0,], errors: [1,], leaf: 4 },
+				page: { layouts: [0,], errors: [1,], leaf: 5 },
 				endpoint: null
 			}
 		],
