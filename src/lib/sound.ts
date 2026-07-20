@@ -2,10 +2,11 @@
 // Lichess's own samples are separately-licensed assets, and synthesis keeps the
 // static bundle asset-free and working offline.
 //
-// A piece landing on a board is modelled as a struck wooden bar: a very short
-// contact click, then a few inharmonic partials ringing and dying away. Noise
-// is kept minimal on purpose — a noise-dominant hit reads as percussion (a
-// drum) rather than as wood. Every parameter is tunable live from /sounds.
+// A piece landing on a board is modelled as a struck bar: a short contact click,
+// then a few inharmonic partials ringing and dying away. Keeping the click quiet
+// relative to the ring is what stops a hit reading as percussion — though a loud
+// click is exactly right for a capture, where the clatter is the point. Every
+// parameter is tunable live from /sounds.
 
 export interface WoodParams {
   /** Fundamental of the wood's lowest mode, Hz. Lower = bigger, heavier piece. */
@@ -16,7 +17,7 @@ export interface WoodParams {
   decay: number;
   /** How much faster each higher mode dies (>1 = higher modes shorter). */
   decayScale: number;
-  /** Level of the initial contact noise, 0..1. Keep low or it sounds like a drum. */
+  /** Level of the initial contact noise, 0..1. Low = soft landing, high = sharp crack. */
   click: number;
   /** Centre frequency of that contact noise, Hz. */
   clickTone: number;
@@ -39,32 +40,36 @@ export interface SoundParams {
   wrong: WrongParams;
 }
 
+// Tuned by ear in the sound lab (/sounds) rather than derived — these beat the
+// theoretical starting points, sometimes by inverting them. A move is a dull,
+// heavily damped two-mode thud with a faint bright tick; a capture is the
+// opposite, a loud bright crack over a long, slowly-damped ring.
 export const DEFAULT_SOUND: SoundParams = {
   move: {
-    freq: 430,
-    partials: [1, 2.76, 5.4],
-    decay: 0.09,
-    decayScale: 1.7,
-    click: 0.1,
-    clickTone: 2600,
+    freq: 390,
+    partials: [1, 2.4],
+    decay: 0.06,
+    decayScale: 2.6,
+    click: 0.06,
+    clickTone: 3700,
     gain: 0.5
   },
   capture: {
-    freq: 290,
-    partials: [1, 2.76, 5.4],
-    decay: 0.13,
-    decayScale: 1.6,
-    click: 0.22,
-    clickTone: 1700,
-    gain: 0.7
+    freq: 295,
+    partials: [1, 2, 3, 4.2],
+    decay: 0.225,
+    decayScale: 1.35,
+    click: 0.77,
+    clickTone: 5650,
+    gain: 0.5
   },
   wrong: {
-    freq: 165,
-    endFreq: 120,
-    dur: 0.17,
-    tremolo: 58,
-    lowpass: 950,
-    gain: 0.16
+    freq: 235,
+    endFreq: 375,
+    dur: 0.07,
+    tremolo: 10,
+    lowpass: 3650,
+    gain: 0.29
   }
 };
 
@@ -195,8 +200,10 @@ export function playCapture(p?: WoodParams): void {
 }
 
 /**
- * Wrong move: a soft low buzz, deliberately not an error klaxon — closer to a
- * terminal bell at the end of a scroll buffer.
+ * Wrong move: a short rising blip, deliberately not an error klaxon. Note the
+ * pitch sweeps *up* and the whole thing is ~70ms — at the tuned tremolo rate
+ * that's under one LFO cycle, so the tremolo acts as a slight amplitude tilt
+ * rather than an audible rasp.
  */
 export function playWrong(p?: WrongParams): void {
   const ac = getCtx();

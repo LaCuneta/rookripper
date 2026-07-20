@@ -64,7 +64,7 @@
     { key: 'decayScale', label: 'Mode damping', min: 1, max: 3, step: 0.05, unit: '×',
       hint: 'Higher = upper partials die faster (duller)' },
     { key: 'click', label: 'Contact click', min: 0, max: 0.8, step: 0.01, unit: '',
-      hint: 'Too much reads as percussion — keep it low' },
+      hint: 'Low = soft landing, high = sharp crack' },
     { key: 'clickTone', label: 'Click tone', min: 400, max: 6000, step: 50, unit: 'Hz',
       hint: 'Brightness of the strike' },
     { key: 'gain', label: 'Volume', min: 0, max: 1, step: 0.02, unit: '' }
