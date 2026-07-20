@@ -3,6 +3,17 @@
   import { syncAll, type SyncProgress } from '$lib/sync';
   import { injectExtraNew } from '$lib/srs';
   import { exportData, downloadBackup, readBackupFile, importData } from '$lib/export';
+  import Tip from '$lib/components/Tip.svelte';
+
+  const STATE_HELP: Record<string, string> = {
+    new: 'Never reviewed yet. It stays new until it comes up in a session, which is governed by your daily new-card limit.',
+    learning:
+      'Recently introduced and still being locked in. These come back after minutes or hours rather than days, until they graduate to review.',
+    review:
+      'Learned. These are scheduled days, weeks or months apart, and the interval grows each time you recall one successfully.',
+    relearning:
+      'A review card you got wrong. It drops back to short intervals until you have it again — this is a lapse.'
+  };
 
   let { data } = $props();
 
@@ -151,15 +162,24 @@
 <section class="stats">
   <div class="stat">
     <span class="n">{data.stats.due}</span>
-    <span class="label">due now</span>
+    <span class="label">
+      <Tip term="due now">
+        Cards whose scheduled date has arrived. This is what you'd work through in a
+        session right now.
+      </Tip>
+    </span>
   </div>
   <div class="stat">
     <span class="n">{data.stats.new}</span>
-    <span class="label">new</span>
+    <span class="label">
+      <Tip term="new">{STATE_HELP.new}</Tip>
+    </span>
   </div>
   <div class="stat">
     <span class="n">{data.stats.learning}</span>
-    <span class="label">learning</span>
+    <span class="label">
+      <Tip term="learning">{STATE_HELP.learning}</Tip>
+    </span>
   </div>
 </section>
 
@@ -172,7 +192,11 @@
 {#if data.dailyLimit > 0}
   <div class="new-cards-row">
     <span class="new-cards-label">
-      New today: {data.newToday} / {data.dailyLimit + data.extraToday}
+      <Tip term="New today">
+        How many never-before-seen cards have been introduced today, against your daily
+        limit. The cap keeps a big backlog from flooding a single session; it doesn't
+        limit reviews of cards you've already started.
+      </Tip>: {data.newToday} / {data.dailyLimit + data.extraToday}
     </span>
     {#if data.stats.new > 0}
       <button class="inject-btn" onclick={injectMore} disabled={injecting}>
@@ -181,6 +205,92 @@
     {/if}
   </div>
 {/if}
+
+<details class="explainer">
+  <summary>How spaced repetition works here</summary>
+
+  <p>
+    RookRipper turns your own Lichess mistakes into flashcards. Every puzzle you
+    failed and every Blunder or Mistake from your analyzed games becomes a
+    <strong>card</strong>: the position as it stood just before you went wrong, for you
+    to play again.
+  </p>
+
+  <h3>The loop</h3>
+  <ol>
+    <li><strong>Sync</strong> pulls new failures from Lichess and creates cards.</li>
+    <li>
+      <strong>Review</strong> shows you cards that are <em>due</em>, a few new ones at a
+      time, and asks you to find the move.
+    </li>
+    <li>
+      <strong>Rating</strong> happens automatically from how you did — solved instantly,
+      solved slowly, or needed hints and retries.
+    </li>
+    <li>
+      <strong>Scheduling</strong> then sets when you'll see the card again. Get it right
+      and the gap grows; get it wrong and it shrinks.
+    </li>
+  </ol>
+
+  <p>
+    The point is to meet each position again right as you're about to forget it. That's
+    the most efficient moment to reinforce it, so you spend your time on the mistakes
+    that haven't stuck rather than the ones that have.
+  </p>
+
+  <h3>The words on this page</h3>
+  <dl>
+    <dt>due</dt>
+    <dd>The card's scheduled date has arrived and it's waiting to be reviewed.</dd>
+
+    <dt>new</dt>
+    <dd>{STATE_HELP.new}</dd>
+
+    <dt>learning</dt>
+    <dd>{STATE_HELP.learning}</dd>
+
+    <dt>review</dt>
+    <dd>{STATE_HELP.review}</dd>
+
+    <dt>relearning</dt>
+    <dd>{STATE_HELP.relearning}</dd>
+
+    <dt>lapse</dt>
+    <dd>
+      A card you'd learned but then got wrong. Repeated lapses tell the scheduler the
+      position is harder for you than it assumed, and it shortens the intervals.
+    </dd>
+
+    <dt>interval</dt>
+    <dd>The gap until the next showing — minutes early on, potentially months later.</dd>
+
+    <dt>daily new limit</dt>
+    <dd>
+      The ceiling on brand-new cards per day (set in Settings). Reviews of cards already
+      in progress are never capped, so this controls how fast you take on new material,
+      not how much you practice.
+    </dd>
+  </dl>
+
+  <h3>How you're rated</h3>
+  <p>
+    Each answer scores <strong>Again</strong>, <strong>Hard</strong>,
+    <strong>Good</strong> or <strong>Easy</strong>. Giving up scores Again and the card
+    comes back soon. A wrong attempt before finding it scores Hard. Solving cleanly
+    scores Good, or Easy if you were fast. Scheduling runs on
+    <a href="https://github.com/open-spaced-repetition/ts-fsrs" target="_blank" rel="noopener noreferrer">FSRS</a>,
+    which models how likely you are to recall each position and picks the interval that
+    lands near the moment you'd otherwise forget it.
+  </p>
+
+  <h3>Reading the forecast</h3>
+  <p>
+    The 30-day chart is your scheduled workload: how many cards come due each day if you
+    keep up. New cards aren't included, since they only enter the schedule once you first
+    see them.
+  </p>
+</details>
 
 {#if grandTotal > 0}
   <section class="card-stats">
@@ -192,7 +302,9 @@
       <tbody>
         {#each STATES as st}
           <tr class:dim={rowTotal(st) === 0}>
-            <td class="state-label">{st}</td>
+            <td class="state-label">
+              <Tip term={st}>{STATE_HELP[st]}</Tip>
+            </td>
             <td>{bd.puzzle[st] || '—'}</td>
             <td>{bd.game[st] || '—'}</td>
             <td class="total-col">{rowTotal(st) || '—'}</td>
@@ -532,6 +644,85 @@
     margin-top: 0.6rem;
     font-size: 0.85rem;
     color: #aaa;
+  }
+
+  .explainer {
+    margin: 1.4rem 0;
+    padding: 0.6rem 0.9rem;
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: #b0b0b0;
+  }
+
+  .explainer summary {
+    cursor: pointer;
+    color: #ccc;
+    font-size: 0.9rem;
+    padding: 0.2rem 0;
+  }
+
+  .explainer summary:hover {
+    color: #7eb3e0;
+  }
+
+  .explainer[open] summary {
+    margin-bottom: 0.6rem;
+    border-bottom: 1px solid #333;
+    padding-bottom: 0.5rem;
+  }
+
+  .explainer h3 {
+    margin: 1.1rem 0 0.35rem;
+    font-size: 0.85rem;
+    color: #ddd;
+  }
+
+  .explainer p {
+    margin: 0.5rem 0;
+  }
+
+  .explainer ol {
+    margin: 0.5rem 0;
+    padding-left: 1.2rem;
+  }
+
+  .explainer li {
+    margin: 0.3rem 0;
+  }
+
+  .explainer strong {
+    color: #ddd;
+  }
+
+  .explainer dl {
+    margin: 0.5rem 0 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 0.9rem;
+  }
+
+  .explainer dt {
+    color: #7eb3e0;
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .explainer dd {
+    margin: 0;
+  }
+
+  @media (max-width: 30rem) {
+    .explainer dl {
+      grid-template-columns: 1fr;
+      gap: 0.1rem;
+    }
+    .explainer dd {
+      margin-bottom: 0.5rem;
+    }
   }
 
   .progress-group {
