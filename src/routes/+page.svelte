@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { base } from '$app/paths';
   import { syncAll } from '$lib/sync';
   import { injectExtraNew } from '$lib/srs';
   import { exportData, downloadBackup, readBackupFile, importData } from '$lib/export';
@@ -135,7 +136,7 @@
 </section>
 
 {#if data.stats.due > 0}
-  <a href="/review" class="review-btn">Start Review ({data.stats.due})</a>
+  <a href="{base}/review" class="review-btn">Start Review ({data.stats.due})</a>
 {:else}
   <p class="empty">No cards due. Check back later or sync for new failures.</p>
 {/if}

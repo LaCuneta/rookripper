@@ -2,6 +2,7 @@
   import { onMount, type Snippet } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { base } from '$app/paths';
   import { requestPersistentStorage } from '$lib/db';
 
   let { data, children }: { data: { configured: boolean }; children: Snippet } = $props();
@@ -13,18 +14,19 @@
 
   let menuOpen = $state(false);
 
-  let reviewSource = $derived(
-    page.url.pathname === '/review' ? (page.url.searchParams.get('source') ?? '') : ''
-  );
+  // route.id is base-path independent; pathname is not.
+  let onReview = $derived(page.route.id === '/review');
+
+  let reviewSource = $derived(onReview ? (page.url.searchParams.get('source') ?? '') : '');
 
   function onSourceChange(e: Event) {
     const val = (e.currentTarget as HTMLSelectElement).value;
     menuOpen = false;
-    goto(val ? `/review?source=${val}` : '/review');
+    goto(val ? `${base}/review?source=${val}` : `${base}/review`);
   }
 </script>
 
-<div class="app" class:wide={page.url.pathname === '/review'}>
+<div class="app" class:wide={onReview}>
   <header class:open={menuOpen}>
     <button
       class="handle"
@@ -33,19 +35,19 @@
       onclick={() => (menuOpen = !menuOpen)}
     ></button>
     <div class="bar">
-      <a href="/" class="logo" onclick={() => (menuOpen = false)}>RookRipper</a>
+      <a href="{base}/" class="logo" onclick={() => (menuOpen = false)}>RookRipper</a>
       {#if data.configured}
         <nav>
           <div class="review-nav">
-            <a href="/review" onclick={() => (menuOpen = false)}>Review</a>
+            <a href="{base}/review" onclick={() => (menuOpen = false)}>Review</a>
             <select value={reviewSource} onchange={onSourceChange}>
               <option value="">All</option>
               <option value="puzzle">Puzzles</option>
               <option value="game">Games</option>
             </select>
           </div>
-          <a href="/" onclick={() => (menuOpen = false)}>Dashboard</a>
-          <a href="/settings" onclick={() => (menuOpen = false)}>Settings</a>
+          <a href="{base}/" onclick={() => (menuOpen = false)}>Dashboard</a>
+          <a href="{base}/settings" onclick={() => (menuOpen = false)}>Settings</a>
         </nav>
       {/if}
     </div>
