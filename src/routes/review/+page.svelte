@@ -24,6 +24,7 @@
   let dests = $state<Map<Key, Key[]>>(new Map(Object.entries(initialDests) as [Key, Key[]][]));
   let turnColor = $state<'white' | 'black'>(initialTurnColor);
   let currentFen = $state(initialCard.fen);
+  let inCheck = $state(isCheckFen(initialCard.fen));
   let currentLastMove = $state<[Key, Key] | undefined>(
     initialCard.last_move
       ? [initialCard.last_move.slice(0, 2) as Key, initialCard.last_move.slice(2, 4) as Key]
@@ -166,8 +167,18 @@
     try {
       const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
       dests = chessgroundDests(pos);
+      inCheck = pos.isCheck();
     } catch {
       dests = new Map();
+      inCheck = false;
+    }
+  }
+
+  function isCheckFen(fen: string): boolean {
+    try {
+      return Chess.fromSetup(parseFen(fen).unwrap()).unwrap().isCheck();
+    } catch {
+      return false;
     }
   }
 
@@ -291,6 +302,7 @@
     lastMove={currentLastMove}
     {dests}
     interactive={phase === 'playing'}
+    check={inCheck}
     {onMove}
     version={boardVersion}
   />

@@ -14,6 +14,7 @@
     lastMove,
     dests,
     interactive = true,
+    check = false,
     onMove,
     version = 0
   }: {
@@ -23,6 +24,7 @@
     lastMove?: [Key, Key];
     dests?: Map<Key, Key[]>;
     interactive?: boolean;
+    check?: boolean;
     onMove?: (orig: Key, dest: Key) => void;
     version?: number;
   } = $props();
@@ -46,6 +48,9 @@
       orientation,
       turnColor,
       lastMove,
+      // chessground marks turnColor's king when `check` is true — the side to
+      // move is by definition the side in check.
+      check,
       movable: {
         color: interactive ? turnColor : undefined,
         free: false,
