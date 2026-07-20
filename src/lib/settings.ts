@@ -1,11 +1,23 @@
 export type PuzzleRatingVisibility = 'always' | 'after' | 'never';
 
+// Lichess's flat board palettes. Its textured themes (wood, canvas, marble) are
+// image assets and aren't reproducible in CSS, so they're not offered.
+export const BOARD_THEMES = {
+  brown: { label: 'Brown', light: '#f0d9b5', dark: '#b58863' },
+  blue: { label: 'Blue', light: '#dee3e6', dark: '#8ca2ad' },
+  green: { label: 'Green', light: '#ffffdd', dark: '#86a666' },
+  ic: { label: 'IC', light: '#ececec', dark: '#c1c18e' }
+} as const;
+
+export type BoardTheme = keyof typeof BOARD_THEMES;
+
 export interface Settings {
   autoNext: boolean;
   autoNextSeconds: number;
   easyThresholdMinutes: number;
   puzzleRating: PuzzleRatingVisibility;
   showCardType: boolean;
+  boardTheme: BoardTheme;
 }
 
 export const DEFAULTS: Settings = {
@@ -14,6 +26,7 @@ export const DEFAULTS: Settings = {
   easyThresholdMinutes: 5,
   puzzleRating: 'always',
   showCardType: true,
+  boardTheme: 'brown',
 };
 
 const KEY = 'rookripper_settings';

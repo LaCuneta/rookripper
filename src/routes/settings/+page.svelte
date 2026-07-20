@@ -1,6 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { loadSettings, saveSettings, DEFAULTS, type Settings } from '$lib/settings';
+  import {
+    loadSettings,
+    saveSettings,
+    DEFAULTS,
+    BOARD_THEMES,
+    type Settings,
+    type BoardTheme
+  } from '$lib/settings';
+
+  const themeKeys = Object.keys(BOARD_THEMES) as BoardTheme[];
   import { getMeta, setMeta } from '$lib/db';
 
   let s = $state<Settings>({ ...DEFAULTS });
@@ -86,6 +95,23 @@
     Show card type (Puzzle / Game)
   </label>
   <fieldset>
+    <legend>Board colours</legend>
+    <div class="themes">
+      {#each themeKeys as key}
+        <label class="theme-opt" class:selected={s.boardTheme === key}>
+          <input type="radio" bind:group={s.boardTheme} value={key} onchange={save} />
+          <span
+            class="swatch"
+            style="--l: {BOARD_THEMES[key].light}; --d: {BOARD_THEMES[key].dark}"
+          ></span>
+          <span class="theme-name">{BOARD_THEMES[key].label}</span>
+        </label>
+      {/each}
+    </div>
+    <p class="hint">Takes effect on the next card.</p>
+  </fieldset>
+
+  <fieldset>
     <legend>Puzzle rating</legend>
     <label class="row">
       <input type="radio" bind:group={s.puzzleRating} value="always" onchange={save} />
@@ -103,6 +129,55 @@
 </section>
 
 <style>
+  .themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+  }
+
+  .theme-opt {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.6rem 0.3rem 0.35rem;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: #aaa;
+  }
+
+  .theme-opt:hover { border-color: #555; color: #ddd; }
+
+  .theme-opt.selected {
+    border-color: #7eb3e0;
+    color: #e8e8e8;
+  }
+
+  .theme-opt input { display: none; }
+
+  /* Same conic tile as the board, at 2x2 squares */
+  .swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 3px;
+    background-color: var(--l);
+    background-image: conic-gradient(
+      var(--d) 0deg 90deg,
+      var(--l) 90deg 180deg,
+      var(--d) 180deg 270deg,
+      var(--l) 270deg 360deg
+    );
+    background-size: 50% 50%;
+  }
+
+  .hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.75rem;
+    color: #777;
+  }
+
   h1 {
     font-size: 1.2rem;
     margin-bottom: 1.5rem;

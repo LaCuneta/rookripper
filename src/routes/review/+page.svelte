@@ -357,6 +357,7 @@
       {dests}
       interactive={phase === 'playing'}
       check={inCheck}
+      theme={settings.boardTheme}
       {onMove}
       version={boardVersion}
     />
