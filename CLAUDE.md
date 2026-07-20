@@ -97,6 +97,30 @@ which makes two Lichess cloud-eval calls and accepts moves within the 50cp
 
 The review route accepts a `?source=puzzle|game` query param (set via the source-filter dropdown in the nav) that is forwarded to `getDueCard()`.
 
+Promotion: a pawn reaching the far rank opens a picker overlay
+(`promoChoices`) and the move is held until the user chooses; the resulting
+UCI carries the piece suffix. Puzzle solutions are matched **exactly**,
+including that suffix — underpromotion is frequently the point of the puzzle,
+so a queen must not satisfy a solution requiring a knight.
+
+### Board rendering (`src/lib/components/ChessBoard.svelte`)
+
+chessground paints squares as a `background-color` plus a translucent SVG
+overlay, so board colours are overridable in pure CSS. `BOARD_THEMES` in
+`settings.ts` holds the light/dark pairs and the component renders a
+`conic-gradient` checkerboard: one tile spans 2×2 squares, so `background-size:
+25%` tiles to exactly 8×8 with the light square on a8. The tile is symmetric,
+so flipping orientation stays correct.
+
+**Piece sets are deliberately not implemented.** chessground ships only
+cburnett; Lichess's other sets are separately-licensed SVG assets that would
+have to be vendored and license-reviewed individually. Reading the user's
+actual Lichess board/piece preference is also out of scope: `/api/account/
+preferences` needs the `preference:read` scope (forcing every existing user to
+re-authorize) and returns only a *theme name*, which is useless without those
+same assets. Lichess's textured themes (wood, canvas, marble) are images and
+likewise aren't offered.
+
 ### Settings
 
 **Client-side UI settings** (`src/lib/settings.ts`) are stored in `localStorage`
