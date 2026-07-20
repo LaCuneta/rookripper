@@ -1,5 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
+  import { invalidateAll } from '$app/navigation';
   import { syncAll, type SyncProgress } from '$lib/sync';
   import { injectExtraNew } from '$lib/srs';
   import {
@@ -70,7 +71,16 @@
       const { puzzles, games } = await syncAll((p) => {
         progress = { ...progress, [p.source]: p };
       });
-      syncMsg = `Synced: +${puzzles.added} puzzles, +${games.added} game cards`;
+      // Stats come from the page load function, which won't re-run on its own —
+      // without this the dashboard keeps showing pre-sync numbers and no
+      // Start Review button. invalidateAll re-runs it in place, so the progress
+      // bars and result message stay on screen (a reload would discard them).
+      await invalidateAll();
+      const total = puzzles.added + games.added;
+      syncMsg =
+        total === 0
+          ? 'Synced — nothing new since last time.'
+          : `Synced: +${puzzles.added} puzzles, +${games.added} game cards. Ready to review.`;
     } catch (e) {
       syncMsg = `Error: ${e}`;
     } finally {
