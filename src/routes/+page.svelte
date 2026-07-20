@@ -32,7 +32,7 @@
     injecting = true;
     try {
       await injectExtraNew();
-      window.location.reload();
+      await invalidateAll();
     } finally {
       injecting = false;
     }

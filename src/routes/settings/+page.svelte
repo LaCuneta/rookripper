@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { base } from '$app/paths';
   import {
     loadSettings,
     saveSettings,
@@ -102,9 +103,10 @@
   {#if s.sound}
     <div class="row indent sound-preview">
       <span class="preview-label">Preview:</span>
-      <button type="button" onclick={playMove}>Move</button>
-      <button type="button" onclick={playCapture}>Take</button>
-      <button type="button" onclick={playWrong}>Wrong</button>
+      <button type="button" onclick={() => playMove()}>Move</button>
+      <button type="button" onclick={() => playCapture()}>Take</button>
+      <button type="button" onclick={() => playWrong()}>Wrong</button>
+      <a class="lab-link" href="{base}/sounds">Tune sounds →</a>
     </div>
   {/if}
 
@@ -169,6 +171,14 @@
     background: #363636;
     color: #ddd;
   }
+
+  .lab-link {
+    margin-left: 0.3rem;
+    font-size: 0.78rem;
+    color: #7eb3e0;
+  }
+
+  .lab-link:hover { color: #a8d0f0; }
 
   .themes {
     display: flex;
