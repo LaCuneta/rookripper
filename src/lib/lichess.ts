@@ -23,24 +23,71 @@ export async function revokeToken(): Promise<void> {
   await fetch(`${BASE}/api/token`, { method: 'DELETE', headers: await authHeaders() });
 }
 
-export async function fetchPuzzleFailures(since?: number): Promise<RawPuzzleActivity[]> {
+// Both list endpoints return ndjson with no up-front count, so we read the body
+// incrementally and surface a running tally rather than buffering the whole
+// response — that's what makes a live progress meter possible.
+async function fetchNdjson<T>(
+  url: string,
+  init: RequestInit,
+  label: string,
+  onItem?: (item: T, scanned: number) => void
+): Promise<T[]> {
+  const res = await fetch(url, init);
+  if (!res.ok) throw new Error(`${label}: ${res.status}`);
+
+  const items: T[] = [];
+  const push = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const item = JSON.parse(trimmed) as T;
+    items.push(item);
+    onItem?.(item, items.length);
+  };
+
+  if (!res.body) {
+    (await res.text()).split('\n').forEach(push);
+    return items;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      push(buf.slice(0, nl));
+      buf = buf.slice(nl + 1);
+    }
+  }
+  push(buf);
+  return items;
+}
+
+export async function fetchPuzzleFailures(
+  since?: number,
+  onScan?: (scanned: number) => void
+): Promise<RawPuzzleActivity[]> {
   const params = new URLSearchParams();
   if (since) params.set('since', String(since));
 
-  const res = await fetch(`${BASE}/api/puzzle/activity?${params}`, { headers: await authHeaders() });
-  if (!res.ok) throw new Error(`Puzzle activity: ${res.status}`);
-
-  const text = await res.text();
-  const entries: RawPuzzleActivity[] = text
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .map((l) => JSON.parse(l));
+  const entries = await fetchNdjson<RawPuzzleActivity>(
+    `${BASE}/api/puzzle/activity?${params}`,
+    { headers: await authHeaders() },
+    'Puzzle activity',
+    (_item, scanned) => onScan?.(scanned)
+  );
 
   return entries.filter((e) => !e.win);
 }
 
-export async function fetchAnalyzedGames(username: string, since?: number): Promise<RawGame[]> {
+export async function fetchAnalyzedGames(
+  username: string,
+  since?: number,
+  onScan?: (scanned: number) => void
+): Promise<RawGame[]> {
   const params = new URLSearchParams({
     analyzed: 'true',
     evals: 'true',
@@ -51,17 +98,12 @@ export async function fetchAnalyzedGames(username: string, since?: number): Prom
   });
   if (since) params.set('since', String(since));
 
-  const res = await fetch(`${BASE}/api/games/user/${encodeURIComponent(username)}?${params}`, {
-    headers: { ...(await authHeaders()), Accept: 'application/x-ndjson' }
-  });
-  if (!res.ok) throw new Error(`Games fetch: ${res.status}`);
-
-  const text = await res.text();
-  return text
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .map((l) => JSON.parse(l));
+  return fetchNdjson<RawGame>(
+    `${BASE}/api/games/user/${encodeURIComponent(username)}?${params}`,
+    { headers: { ...(await authHeaders()), Accept: 'application/x-ndjson' } },
+    'Games fetch',
+    (_item, scanned) => onScan?.(scanned)
+  );
 }
 
 export async function cloudEval(fen: string, multiPv = 3): Promise<CloudEvalResult | null> {

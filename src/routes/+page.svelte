@@ -1,6 +1,6 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import { syncAll } from '$lib/sync';
+  import { syncAll, type SyncProgress } from '$lib/sync';
   import { injectExtraNew } from '$lib/srs';
   import { exportData, downloadBackup, readBackupFile, importData } from '$lib/export';
 
@@ -20,11 +20,39 @@
     }
   }
 
+  // Puzzles and games sync in parallel, so each gets its own progress row.
+  let progress = $state<Record<'puzzles' | 'games', SyncProgress | null>>({
+    puzzles: null,
+    games: null
+  });
+
+  function progressLabel(p: SyncProgress): string {
+    const noun = p.source === 'puzzles' ? 'puzzle activity' : 'games';
+    if (p.stage === 'fetching') {
+      return p.current === 0 ? `Contacting Lichess for ${noun}…` : `Fetched ${p.current} ${noun}…`;
+    }
+    if (p.stage === 'processing') {
+      return `Processing ${p.source} ${p.current} / ${p.total ?? '?'}`;
+    }
+    return `${p.source}: +${p.current} new card${p.current === 1 ? '' : 's'}`;
+  }
+
+  // Fetch has no known total, so the bar is indeterminate until processing.
+  function progressPct(p: SyncProgress): number | null {
+    if (p.stage === 'done') return 100;
+    if (p.stage === 'processing' && p.total) return Math.round((p.current / p.total) * 100);
+    if (p.stage === 'processing') return 100;
+    return null;
+  }
+
   async function sync() {
     syncing = true;
     syncMsg = '';
+    progress = { puzzles: null, games: null };
     try {
-      const { puzzles, games } = await syncAll();
+      const { puzzles, games } = await syncAll((p) => {
+        progress = { ...progress, [p.source]: p };
+      });
       syncMsg = `Synced: +${puzzles.added} puzzles, +${games.added} game cards`;
     } catch (e) {
       syncMsg = `Error: ${e}`;
@@ -213,6 +241,35 @@
       {syncing ? 'Syncing…' : 'Sync Now'}
     </button>
   </div>
+  {#if syncing || progress.puzzles || progress.games}
+    <div class="progress-group">
+      {#each ['puzzles', 'games'] as const as src}
+        {@const p = progress[src]}
+        {#if p}
+          {@const pct = progressPct(p)}
+          <div class="progress-row">
+            <span class="progress-label">{progressLabel(p)}</span>
+            <div
+              class="progress-track"
+              role="progressbar"
+              aria-valuenow={pct ?? undefined}
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-label="{src} sync progress"
+            >
+              <div
+                class="progress-fill"
+                class:indeterminate={pct === null}
+                class:done={p.stage === 'done'}
+                style={pct === null ? '' : `width: ${pct}%`}
+              ></div>
+            </div>
+          </div>
+        {/if}
+      {/each}
+    </div>
+  {/if}
+
   {#if syncMsg}
     <p class="sync-msg">{syncMsg}</p>
   {/if}
@@ -475,6 +532,61 @@
     margin-top: 0.6rem;
     font-size: 0.85rem;
     color: #aaa;
+  }
+
+  .progress-group {
+    margin-top: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .progress-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .progress-label {
+    font-size: 0.78rem;
+    color: #999;
+  }
+
+  .progress-track {
+    height: 5px;
+    background: #2a2a2a;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #7eb3e0;
+    border-radius: 3px;
+    transition: width 0.2s ease;
+  }
+
+  .progress-fill.done {
+    background: #6dbf67;
+  }
+
+  /* No total during the ndjson fetch — slide a partial bar instead of faking a % */
+  .progress-fill.indeterminate {
+    width: 35%;
+    animation: slide 1.1s ease-in-out infinite;
+  }
+
+  @keyframes slide {
+    0%   { margin-left: -35%; }
+    100% { margin-left: 100%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress-fill.indeterminate {
+      animation: none;
+      width: 100%;
+      opacity: 0.4;
+    }
   }
 
   .sync-log {

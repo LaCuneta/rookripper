@@ -11,6 +11,17 @@ import type { Card } from './types';
 // only the persistence moved from better-sqlite3 to Dexie.
 const STARTING_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
+// `total` is undefined while streaming — ndjson gives no count up front, so the
+// fetch stage can only report a running tally.
+export interface SyncProgress {
+  source: 'puzzles' | 'games';
+  stage: 'fetching' | 'processing' | 'done';
+  current: number;
+  total?: number;
+}
+
+export type ProgressFn = (p: SyncProgress) => void;
+
 function blankCard(): Omit<Card, 'id'> {
   const now = Date.now();
   return {
@@ -42,7 +53,9 @@ function blankCard(): Omit<Card, 'id'> {
   };
 }
 
-export async function syncPuzzles(): Promise<{ fetched: number; added: number }> {
+export async function syncPuzzles(
+  onProgress?: ProgressFn
+): Promise<{ fetched: number; added: number }> {
   const since = await getMeta('last_puzzle_sync');
   const logId = await db.syncLog.add({
     sync_type: 'puzzles',
@@ -54,9 +67,14 @@ export async function syncPuzzles(): Promise<{ fetched: number; added: number }>
   });
 
   try {
-    const failures = await fetchPuzzleFailures(since ? parseInt(since) : undefined);
+    onProgress?.({ source: 'puzzles', stage: 'fetching', current: 0 });
+    const failures = await fetchPuzzleFailures(since ? parseInt(since) : undefined, (scanned) =>
+      onProgress?.({ source: 'puzzles', stage: 'fetching', current: scanned })
+    );
 
     let added = 0;
+    let processed = 0;
+    onProgress?.({ source: 'puzzles', stage: 'processing', current: 0, total: failures.length });
     await db.transaction('rw', db.cards, db.meta, async () => {
       for (const f of failures) {
         const themes = Array.isArray(f.puzzle.themes)
@@ -93,6 +111,13 @@ export async function syncPuzzles(): Promise<{ fetched: number; added: number }>
           });
         }
         added++;
+        processed++;
+        onProgress?.({
+          source: 'puzzles',
+          stage: 'processing',
+          current: processed,
+          total: failures.length
+        });
       }
       // failures are newest-first; save the most recent timestamp as cursor.
       if (failures.length > 0) await setMeta('last_puzzle_sync', String(failures[0].date));
@@ -103,6 +128,7 @@ export async function syncPuzzles(): Promise<{ fetched: number; added: number }>
       items_fetched: failures.length,
       items_added: added
     });
+    onProgress?.({ source: 'puzzles', stage: 'done', current: added, total: failures.length });
     return { fetched: failures.length, added };
   } catch (err) {
     await db.syncLog.update(logId, { completed_at: Date.now(), error: String(err) });
@@ -110,7 +136,9 @@ export async function syncPuzzles(): Promise<{ fetched: number; added: number }>
   }
 }
 
-export async function syncGames(): Promise<{ fetched: number; added: number }> {
+export async function syncGames(
+  onProgress?: ProgressFn
+): Promise<{ fetched: number; added: number }> {
   const username = await getMeta('lichess_username');
   if (!username) throw new Error('Username not configured');
 
@@ -125,11 +153,21 @@ export async function syncGames(): Promise<{ fetched: number; added: number }> {
   });
 
   try {
-    const games = await fetchAnalyzedGames(username, since ? parseInt(since) : undefined);
+    onProgress?.({ source: 'games', stage: 'fetching', current: 0 });
+    const games = await fetchAnalyzedGames(username, since ? parseInt(since) : undefined, (scanned) =>
+      onProgress?.({ source: 'games', stage: 'fetching', current: scanned })
+    );
 
     let added = 0;
-    for (const game of games) {
-      added += await extractBlunders(game, username);
+    onProgress?.({ source: 'games', stage: 'processing', current: 0, total: games.length });
+    for (let i = 0; i < games.length; i++) {
+      added += await extractBlunders(games[i], username);
+      onProgress?.({
+        source: 'games',
+        stage: 'processing',
+        current: i + 1,
+        total: games.length
+      });
     }
 
     if (games.length > 0) await setMeta('last_game_sync', String(Date.now()));
@@ -139,6 +177,7 @@ export async function syncGames(): Promise<{ fetched: number; added: number }> {
       items_fetched: games.length,
       items_added: added
     });
+    onProgress?.({ source: 'games', stage: 'done', current: added, total: games.length });
     return { fetched: games.length, added };
   } catch (err) {
     await db.syncLog.update(logId, { completed_at: Date.now(), error: String(err) });
@@ -214,10 +253,10 @@ async function extractBlunders(game: RawGame, username: string): Promise<number>
   return added;
 }
 
-export async function syncAll(): Promise<{
+export async function syncAll(onProgress?: ProgressFn): Promise<{
   puzzles: { fetched: number; added: number };
   games: { fetched: number; added: number };
 }> {
-  const [puzzles, games] = await Promise.all([syncPuzzles(), syncGames()]);
+  const [puzzles, games] = await Promise.all([syncPuzzles(onProgress), syncGames(onProgress)]);
   return { puzzles, games };
 }
