@@ -63,6 +63,29 @@ export async function importData(
   return { cards: data.cards.length, reviewLog: data.reviewLog.length };
 }
 
+// Cursors are cleared along with the cards, otherwise `since` would suppress
+// re-syncing the very failures that were just deleted, leaving no way back.
+// The access token and new-card limit are settings, not progress, so they stay.
+const PROGRESS_META_KEYS = ['last_puzzle_sync', 'last_game_sync', 'extra_new_today'];
+
+export interface DeleteResult {
+  cards: number;
+  reviewLog: number;
+}
+
+export async function deleteAllProgress(): Promise<DeleteResult> {
+  const [cards, reviewLog] = await Promise.all([db.cards.count(), db.reviewLog.count()]);
+
+  await db.transaction('rw', db.cards, db.reviewLog, db.meta, db.syncLog, async () => {
+    await db.cards.clear();
+    await db.reviewLog.clear();
+    await db.syncLog.clear();
+    for (const key of PROGRESS_META_KEYS) await db.meta.delete(key);
+  });
+
+  return { cards, reviewLog };
+}
+
 // ── Browser file helpers ────────────────────────────────────────────────────
 export function downloadBackup(backup: Backup): void {
   const stamp = new Date(backup.exportedAt).toISOString().slice(0, 10);

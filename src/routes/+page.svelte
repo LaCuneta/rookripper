@@ -2,7 +2,13 @@
   import { base } from '$app/paths';
   import { syncAll, type SyncProgress } from '$lib/sync';
   import { injectExtraNew } from '$lib/srs';
-  import { exportData, downloadBackup, readBackupFile, importData } from '$lib/export';
+  import {
+    exportData,
+    downloadBackup,
+    readBackupFile,
+    importData,
+    deleteAllProgress
+  } from '$lib/export';
   import Tip from '$lib/components/Tip.svelte';
 
   const STATE_HELP: Record<string, string> = {
@@ -101,6 +107,30 @@
     } finally {
       importing = false;
       fileInput.value = '';
+    }
+  }
+
+  let deleting = $state(false);
+
+  async function deleteProgress() {
+    const total = grandTotal;
+    const warning =
+      `Permanently delete all ${total} card${total === 1 ? '' : 's'} and your entire review history?\n\n` +
+      `This cannot be undone. Export a backup first if you might want this back.\n\n` +
+      `You'll stay signed in to Lichess, and sync cursors reset so a fresh sync ` +
+      `can pull your failures again from scratch.`;
+    if (!confirm(warning)) return;
+
+    deleting = true;
+    backupMsg = '';
+    try {
+      const res = await deleteAllProgress();
+      backupMsg = `Deleted ${res.cards} cards and ${res.reviewLog} reviews.`;
+      window.location.reload();
+    } catch (err) {
+      backupMsg = `Delete failed: ${err instanceof Error ? err.message : err}`;
+    } finally {
+      deleting = false;
     }
   }
 
@@ -425,6 +455,13 @@
       onchange={onImportFile}
       hidden
     />
+    <button
+      class="danger-btn"
+      onclick={deleteProgress}
+      disabled={deleting || grandTotal === 0}
+    >
+      {deleting ? 'Deleting…' : 'Delete progress'}
+    </button>
   </div>
   {#if backupMsg}
     <p class="sync-msg">{backupMsg}</p>
@@ -830,5 +867,18 @@
   }
 
   .backup-row button:hover:not(:disabled) { background: #444; }
+
+  /* Set apart from export/import — this one is irreversible */
+  .backup-row .danger-btn {
+    margin-left: auto;
+    border-color: #6b3535;
+    color: #d08a8a;
+  }
+
+  .backup-row .danger-btn:hover:not(:disabled) {
+    background: #5c2b2b;
+    border-color: #8a4444;
+    color: #ffdede;
+  }
   .backup-row button:disabled { opacity: 0.5; }
 </style>
