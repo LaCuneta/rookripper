@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { Chess } from 'chessops/chess';
   import { parseFen, makeFen } from 'chessops/fen';
-  import { parseUci } from 'chessops/util';
+  import { parseUci, parseSquare } from 'chessops/util';
   import { chessgroundDests } from 'chessops/compat';
   import type { Key } from 'chessground/types';
   import ChessBoard from '$lib/components/ChessBoard.svelte';
@@ -48,13 +48,65 @@
   // Parsed solution for puzzle cards
   const solution: string[] = card.source === 'puzzle' ? JSON.parse(card.solution_moves ?? '[]') : [];
 
+  // ── Promotion ────────────────────────────────────────────────────────────
+  const PROMO_ROLES = [
+    { role: 'queen', letter: 'q' },
+    { role: 'rook', letter: 'r' },
+    { role: 'bishop', letter: 'b' },
+    { role: 'knight', letter: 'n' }
+  ] as const;
+
+  let promotion = $state<{ orig: Key; dest: Key; color: 'white' | 'black' } | null>(null);
+
+  function isPromotionMove(orig: Key, dest: Key): boolean {
+    if (dest[1] !== '1' && dest[1] !== '8') return false;
+    try {
+      const sq = parseSquare(orig);
+      if (sq === undefined) return false;
+      const pos = Chess.fromSetup(parseFen(currentFen).unwrap()).unwrap();
+      return pos.board.get(sq)?.role === 'pawn';
+    } catch {
+      return false;
+    }
+  }
+
+  // Lichess-style column of choices growing from the promotion square toward
+  // the player, so it never runs off the board.
+  const promoChoices = $derived.by(() => {
+    if (!promotion) return [];
+    const file = promotion.dest.charCodeAt(0) - 97;
+    const rank = parseInt(promotion.dest[1]);
+    const col = orientation === 'white' ? file : 7 - file;
+    const baseRow = orientation === 'white' ? 8 - rank : rank - 1;
+    const dir = baseRow === 0 ? 1 : -1;
+    return PROMO_ROLES.map((p, i) => ({ ...p, col, row: baseRow + dir * i }));
+  });
+
+  function choosePromotion(letter: string) {
+    const p = promotion;
+    promotion = null;
+    if (p) playMove(p.orig + p.dest + letter);
+  }
+
+  function cancelPromotion() {
+    promotion = null;
+    boardVersion++; // snap the pawn back — chessground already moved it visually
+  }
+
   // ── Move handling ────────────────────────────────────────────────────────
   async function onMove(orig: Key, dest: Key) {
     if (phase !== 'playing') return;
     board?.clearShapes();
 
-    const uci = orig + dest;
+    if (isPromotionMove(orig, dest)) {
+      promotion = { orig, dest, color: turnColor };
+      return; // wait for the user's choice before resolving the move
+    }
 
+    await playMove(orig + dest);
+  }
+
+  async function playMove(uci: string) {
     if (card.source === 'puzzle') {
       await handlePuzzleMove(uci);
     } else {
@@ -65,7 +117,9 @@
   async function handlePuzzleMove(uci: string) {
     const expected = solution[solutionIndex];
 
-    if (uci !== expected && !isPromotion(uci, expected)) {
+    // Exact match including the promotion suffix — underpromotion is often the
+    // whole point of the puzzle, so a queen must not pass for a knight.
+    if (uci !== expected) {
       wrongMove('Not the right move. Try again.');
       return;
     }
@@ -251,11 +305,6 @@
     }
   }
 
-  function isPromotion(played: string, expected: string): boolean {
-    // Allow any promotion piece if the base move matches
-    return played.length === 4 && expected.length === 5 && played === expected.slice(0, 4);
-  }
-
   function delay(ms: number) {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -289,23 +338,53 @@
 <svelte:head><title>Review · RookRipper</title></svelte:head>
 
 <svelte:window onkeydown={(e) => {
+  if (promotion) {
+    if (e.key === 'Escape') cancelPromotion();
+    return; // don't flip the board out from under an open picker
+  }
   if (e.key === 'f') orientation = orientation === 'white' ? 'black' : 'white';
   if (e.key === 'n' && phase === 'complete') next();
 }} />
 
 <div class="review">
-  <ChessBoard
-    bind:this={board}
-    fen={currentFen}
-    {orientation}
-    {turnColor}
-    lastMove={currentLastMove}
-    {dests}
-    interactive={phase === 'playing'}
-    check={inCheck}
-    {onMove}
-    version={boardVersion}
-  />
+  <div class="board-wrap">
+    <ChessBoard
+      bind:this={board}
+      fen={currentFen}
+      {orientation}
+      {turnColor}
+      lastMove={currentLastMove}
+      {dests}
+      interactive={phase === 'playing'}
+      check={inCheck}
+      {onMove}
+      version={boardVersion}
+    />
+
+    {#if promotion}
+      <!-- .cg-wrap so chessground's piece sprites resolve inside the overlay -->
+      <div
+        class="promo-backdrop"
+        role="button"
+        tabindex="-1"
+        aria-label="Cancel promotion"
+        onclick={cancelPromotion}
+        onkeydown={(e) => e.key === 'Escape' && cancelPromotion()}
+      ></div>
+      <div class="cg-wrap promo-layer">
+        {#each promoChoices as choice (choice.letter)}
+          <button
+            class="promo-btn"
+            style="left: {choice.col * 12.5}%; top: {choice.row * 12.5}%"
+            aria-label="Promote to {choice.role}"
+            onclick={() => choosePromotion(choice.letter)}
+          >
+            <piece class="{choice.role} {promotion.color}"></piece>
+          </button>
+        {/each}
+      </div>
+    {/if}
+  </div>
 
   <div class="side">
     <div class="info">
@@ -347,11 +426,62 @@
     gap: 1.2rem;
   }
 
+  .board-wrap {
+    position: relative;
+    width: var(--board-size);
+    height: var(--board-size);
+  }
+
   .side {
     width: var(--board-size);
     display: flex;
     flex-direction: column;
     gap: 1.2rem;
+  }
+
+  /* ── Promotion picker ─────────────────────────────────────────────────── */
+  .promo-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 10;
+    cursor: pointer;
+  }
+
+  .promo-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 11;
+    pointer-events: none;
+  }
+
+  .promo-btn {
+    position: absolute;
+    width: 12.5%;
+    height: 12.5%;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #f0f0f0;
+    box-shadow: 0 0 6px 2px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .promo-btn:hover,
+  .promo-btn:focus-visible {
+    background: #7eb3e0;
+    outline: none;
+  }
+
+  /* Override chessground's 12.5%-of-board sizing so the sprite fills the button */
+  .promo-btn piece {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
   }
 
   /* Wide screens: board on the left, status + controls in a column to the
