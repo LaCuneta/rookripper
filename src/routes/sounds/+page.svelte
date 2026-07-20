@@ -19,9 +19,15 @@
     loaded = true;
   });
 
+  // $state.snapshot, not structuredClone: p is a reactive proxy and structured
+  // cloning a Proxy throws.
+  function persist() {
+    saveSoundParams($state.snapshot(p));
+  }
+
   // Persist on every change so the review page picks up the same values.
   function commit(play?: 'move' | 'capture' | 'wrong') {
-    saveSoundParams(structuredClone(p));
+    persist();
     if (play === 'move') playMove();
     if (play === 'capture') playCapture();
     if (play === 'wrong') playWrong();
@@ -78,7 +84,7 @@
   let copied = $state(false);
   async function copyJson() {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(p, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify($state.snapshot(p), null, 2));
       copied = true;
       setTimeout(() => (copied = false), 1500);
     } catch {
@@ -127,7 +133,7 @@
             max={f.max}
             step={f.step}
             bind:value={p[s.kind][f.key]}
-            oninput={() => saveSoundParams(structuredClone(p))}
+            oninput={persist}
             onchange={() => commit(s.kind)}
           />
           <span class="val">{p[s.kind][f.key]}{f.unit}</span>
@@ -153,7 +159,7 @@
           max={f.max}
           step={f.step}
           bind:value={p.wrong[f.key]}
-          oninput={() => saveSoundParams(structuredClone(p))}
+          oninput={persist}
           onchange={() => commit('wrong')}
         />
         <span class="val">{p.wrong[f.key]}{f.unit}</span>
