@@ -10,6 +10,7 @@
   import { loadSettings } from '$lib/settings';
   import { applyReview } from '$lib/srs';
   import { evaluateMove } from '$lib/cloudEval';
+  import { playMove, playCapture, playWrong } from '$lib/sound';
 
   let { data } = $props();
 
@@ -85,7 +86,7 @@
   function choosePromotion(letter: string) {
     const p = promotion;
     promotion = null;
-    if (p) playMove(p.orig + p.dest + letter);
+    if (p) submitMove(p.orig + p.dest + letter);
   }
 
   function cancelPromotion() {
@@ -103,10 +104,10 @@
       return; // wait for the user's choice before resolving the move
     }
 
-    await playMove(orig + dest);
+    await submitMove(orig + dest);
   }
 
-  async function playMove(uci: string) {
+  async function submitMove(uci: string) {
     if (card.source === 'puzzle') {
       await handlePuzzleMove(uci);
     } else {
@@ -195,6 +196,7 @@
   function wrongMove(msg: string) {
     hadWrongAttempt = true;
     message = msg;
+    if (settings.sound) playWrong();
     board?.shake();
     boardVersion++;
     phase = 'playing';
@@ -211,10 +213,30 @@
   }
 
   function updatePosition(fen: string, uciMove: string) {
+    // currentFen is still the pre-move position here, which is what capture
+    // detection needs. Every position change routes through this function, so
+    // computer replies and revealed answers get a sound too, as on Lichess.
+    if (settings.sound) {
+      isCapture(currentFen, uciMove) ? playCapture() : playMove();
+    }
     currentFen = fen;
     currentLastMove = [uciMove.slice(0, 2) as Key, uciMove.slice(2, 4) as Key];
     recomputeDests(fen);
     turnColor = turnColor === 'white' ? 'black' : 'white';
+  }
+
+  function isCapture(fenBefore: string, uci: string): boolean {
+    try {
+      const from = parseSquare(uci.slice(0, 2));
+      const to = parseSquare(uci.slice(2, 4));
+      if (from === undefined || to === undefined) return false;
+      const pos = Chess.fromSetup(parseFen(fenBefore).unwrap()).unwrap();
+      if (pos.board.get(to)) return true;
+      // En passant: a pawn changing file onto an empty square.
+      return pos.board.get(from)?.role === 'pawn' && uci[0] !== uci[2];
+    } catch {
+      return false;
+    }
   }
 
   function recomputeDests(fen: string) {

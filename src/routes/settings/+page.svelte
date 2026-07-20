@@ -11,6 +11,7 @@
 
   const themeKeys = Object.keys(BOARD_THEMES) as BoardTheme[];
   import { getMeta, setMeta } from '$lib/db';
+  import { playMove, playCapture, playWrong } from '$lib/sound';
 
   let s = $state<Settings>({ ...DEFAULTS });
   let newCardsPerDay = $state(20);
@@ -94,6 +95,19 @@
     <input type="checkbox" bind:checked={s.showCardType} onchange={save} />
     Show card type (Puzzle / Game)
   </label>
+  <label class="row">
+    <input type="checkbox" bind:checked={s.sound} onchange={save} />
+    Sound effects
+  </label>
+  {#if s.sound}
+    <div class="row indent sound-preview">
+      <span class="preview-label">Preview:</span>
+      <button type="button" onclick={playMove}>Move</button>
+      <button type="button" onclick={playCapture}>Take</button>
+      <button type="button" onclick={playWrong}>Wrong</button>
+    </div>
+  {/if}
+
   <fieldset>
     <legend>Board colours</legend>
     <div class="themes">
@@ -129,6 +143,33 @@
 </section>
 
 <style>
+  .sound-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+  }
+
+  .preview-label {
+    font-size: 0.78rem;
+    color: #777;
+  }
+
+  .sound-preview button {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.78rem;
+    background: #2a2a2a;
+    color: #aaa;
+    border: 1px solid #444;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+
+  .sound-preview button:hover {
+    background: #363636;
+    color: #ddd;
+  }
+
   .themes {
     display: flex;
     flex-wrap: wrap;

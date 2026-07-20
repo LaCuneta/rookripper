@@ -121,6 +121,23 @@ re-authorize) and returns only a *theme name*, which is useless without those
 same assets. Lichess's textured themes (wood, canvas, marble) are images and
 likewise aren't offered.
 
+### Sound (`src/lib/sound.ts`)
+
+`playMove()`, `playCapture()`, `playWrong()` are **synthesised with the Web Audio
+API** — no audio files. Lichess's samples are separately-licensed assets, and
+synthesis keeps the bundle asset-free and offline-capable, at the cost of being
+close-but-not-identical to Lichess. Moves are a filtered-noise transient plus a
+low sine body; captures are the same, heavier and lower; the wrong-move sound is
+a soft tremolo'd triangle, deliberately not an error klaxon.
+
+The `AudioContext` is created lazily and resumed on use — every caller runs from
+a click or drag, satisfying autoplay policy. Sound is gated on the `sound`
+setting, and all three are previewable from the settings page.
+
+Capture detection lives in the review page's `isCapture()`, which checks the
+destination square in the pre-move position and handles en passant (a pawn
+changing file onto an empty square).
+
 ### Settings
 
 **Client-side UI settings** (`src/lib/settings.ts`) are stored in `localStorage`

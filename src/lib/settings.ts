@@ -18,6 +18,7 @@ export interface Settings {
   puzzleRating: PuzzleRatingVisibility;
   showCardType: boolean;
   boardTheme: BoardTheme;
+  sound: boolean;
 }
 
 export const DEFAULTS: Settings = {
@@ -27,6 +28,7 @@ export const DEFAULTS: Settings = {
   puzzleRating: 'always',
   showCardType: true,
   boardTheme: 'brown',
+  sound: true,
 };
 
 const KEY = 'rookripper_settings';
