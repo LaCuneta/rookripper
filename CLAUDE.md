@@ -86,6 +86,38 @@ src/routes/review/+page.svelte  (chessground board, puzzle/game move logic)
 run the script) and writes a backup JSON in the format `importData()` accepts.
 Import it from the dashboard's **Data & backup** section.
 
+### Puzzle supply (incremental history load)
+
+`/api/puzzle/activity` streams **every** attempt ever made — wins included, each
+carrying a full puzzle object — so pulling a long history up front was the
+slowest part of connecting. Instead:
+
+- `syncPuzzles()` catches up **forwards** from the `last_puzzle_sync` cursor. On
+  a first run (no cursor) it takes only the newest page (`max=200`).
+- `backfillPuzzles(floor)` pages **backwards** via `before` + `max` (Lichess
+  documents that pair for pagination), stopping once unreviewed puzzle cards
+  reach `SUPPLY_FLOOR` (60, ~3 days at the default 20/day) or the history runs
+  out. `MAX_PAGES` caps a single top-up.
+- `ensurePuzzleSupply()` runs on app load: a local count first, so it makes no
+  network call while supply is healthy, and it's throttled besides.
+
+**Direction of travel decides whether a card resets.** Forwards, a puzzle we
+already hold turning up again means a *re-failure* — reset it to `new`.
+Backwards, older failures say nothing new, so existing cards are left alone;
+resetting there would wipe a live schedule with stale history. That's the
+`resetExisting` flag on `storeFailures()`.
+
+`puzzle_backfill_before` / `puzzle_history_exhausted` are **deliberately not
+synced**: they describe how much history *this device* has pulled into its local
+`cards` table, and adopting a peer's deeper cursor would make a device skip the
+range in between and never create those cards.
+
+`fetchTotalFailures()` gets an advisory total from
+`/api/puzzle/dashboard/{days}` — `global.nb - global.firstWins` is the
+first-attempt failure count. `days` has no documented maximum, so a window
+spanning Lichess's whole existence gives a lifetime figure in one small JSON
+call. Cached for 6h and never allowed to block sync or review.
+
 ### Card types
 
 Two card sources share one `cards` table and one review flow. Differences:

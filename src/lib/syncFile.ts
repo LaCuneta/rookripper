@@ -41,7 +41,15 @@ export interface SyncFile {
   meta_updated_at?: Record<string, number>;
 }
 
-/** Config that is genuinely shared. Tokens and `device_id` are never included. */
+/**
+ * Config that is genuinely shared. Tokens and `device_id` are never included.
+ *
+ * Note what is *absent*: `puzzle_backfill_before` and `puzzle_history_exhausted`
+ * describe how much puzzle history **this device** has pulled from Lichess into
+ * its local `cards` table. Since `cards` is a local projection and never syncs,
+ * adopting a peer's deeper cursor would make this device skip the history in
+ * between and silently never create those cards. They stay device-local.
+ */
 export const SYNC_META_KEYS = [
   'last_puzzle_sync',
   'last_game_sync',

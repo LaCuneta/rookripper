@@ -123,7 +123,16 @@ export async function importData(
 // Cursors are cleared along with the cards, otherwise `since` would suppress
 // re-syncing the very failures that were just deleted, leaving no way back.
 // The access token and new-card limit are settings, not progress, so they stay.
-const PROGRESS_META_KEYS = ['last_puzzle_sync', 'last_game_sync', 'extra_new_today'];
+const PROGRESS_META_KEYS = [
+  'last_puzzle_sync',
+  'last_game_sync',
+  'extra_new_today',
+  // Otherwise a reset would resume paging from deep in the history it just
+  // deleted, leaving the recent failures unreachable.
+  'puzzle_backfill_before',
+  'puzzle_history_exhausted',
+  'puzzle_backfill_at'
+];
 
 export interface DeleteResult {
   cards: number;

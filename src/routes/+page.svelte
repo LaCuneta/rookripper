@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
   import { invalidateAll } from '$app/navigation';
-  import { syncAll, type SyncProgress } from '$lib/sync';
+  import { syncAll, backfillPuzzles, SUPPLY_FLOOR, type SyncProgress } from '$lib/sync';
   import { injectExtraNew } from '$lib/srs';
   import {
     exportData,
@@ -119,6 +119,29 @@
     } finally {
       importing = false;
       fileInput.value = '';
+    }
+  }
+
+  let loadingMore = $state(false);
+  let loadMoreMsg = $state('');
+
+  // Explicit top-up: raises the target above the automatic floor so a click
+  // always fetches something, even when supply is already at the floor.
+  async function loadMorePuzzles() {
+    loadingMore = true;
+    loadMoreMsg = '';
+    try {
+      const target = data.unreviewedPuzzles + SUPPLY_FLOOR;
+      const res = await backfillPuzzles(target, (p) => (progress[p.source] = p));
+      loadMoreMsg = res.exhausted
+        ? `Loaded ${res.added} more. That's your whole puzzle history.`
+        : `Loaded ${res.added} more puzzle${res.added === 1 ? '' : 's'} from ${res.scanned} entries.`;
+      await invalidateAll();
+    } catch (err) {
+      loadMoreMsg = `Load failed: ${err instanceof Error ? err.message : err}`;
+    } finally {
+      loadingMore = false;
+      progress.puzzles = null;
     }
   }
 
@@ -404,6 +427,27 @@
       {syncing ? 'Syncing…' : 'Sync Now'}
     </button>
   </div>
+
+  <div class="library">
+    <div class="library-text">
+      {data.puzzlesLoaded} failed puzzle{data.puzzlesLoaded === 1 ? '' : 's'} loaded{#if data.totalFailures !== null && !data.historyExhausted}
+        of ~{data.totalFailures} on Lichess{/if}·
+      {data.unreviewedPuzzles} not yet studied.
+      {#if data.historyExhausted}
+        <span class="muted">Your whole puzzle history is loaded.</span>
+      {:else}
+        <span class="muted">More load automatically as you work through these.</span>
+      {/if}
+    </div>
+    {#if !data.historyExhausted}
+      <button onclick={loadMorePuzzles} disabled={loadingMore || syncing}>
+        {loadingMore ? 'Loading…' : 'Load more'}
+      </button>
+    {/if}
+  </div>
+  {#if loadMoreMsg}
+    <p class="load-msg">{loadMoreMsg}</p>
+  {/if}
   {#if syncing || progress.puzzles || progress.games}
     <div class="progress-group">
       {#each ['puzzles', 'games'] as const as src}
@@ -674,6 +718,26 @@
     font-size: 1rem;
     margin-bottom: 0.8rem;
     color: #aaa;
+  }
+
+  .library {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border-top: 1px solid #2e2e2e;
+    font-size: 0.85rem;
+  }
+
+  .library-text { color: #bbb; }
+  .library .muted { color: #777; }
+
+  .load-msg {
+    margin: 0.4rem 0 0;
+    font-size: 0.8rem;
+    color: #999;
   }
 
   .sync-row {

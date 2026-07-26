@@ -6,6 +6,7 @@
   import { requestPersistentStorage } from '$lib/db';
   import { isGoogleConnected } from '$lib/googleAuth';
   import { initSyncStatus, installSyncTriggers, syncOnStart } from '$lib/driveSync';
+  import { ensurePuzzleSupply } from '$lib/sync';
 
   let { data, children }: { data: { configured: boolean }; children: Snippet } = $props();
 
@@ -23,6 +24,9 @@
         teardown = installSyncTriggers();
         void syncOnStart();
       }
+      // Pull more puzzle history only once the supply has run down; a no-op
+      // (and no network call) while there is plenty left to study.
+      void ensurePuzzleSupply();
     })();
     return () => teardown?.();
   });

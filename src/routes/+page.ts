@@ -1,6 +1,7 @@
 import type { PageLoad } from './$types';
 import { db, getMeta } from '$lib/db';
 import { getDueStats, getNewCardInfo } from '$lib/srs';
+import { unreviewedPuzzleCount, isHistoryExhausted, fetchTotalFailures } from '$lib/sync';
 
 // Local YYYY-MM-DD key, matching the client-side dateKey() in +page.svelte so
 // the forecast buckets line up with the rendered day rows.
@@ -51,9 +52,22 @@ export const load: PageLoad = async () => {
     .map(([day, n]) => ({ day, n }))
     .sort((a, b) => a.day.localeCompare(b.day));
 
+  const [puzzlesLoaded, unreviewedPuzzles, historyExhausted] = await Promise.all([
+    db.cards.where('source').equals('puzzle').count(),
+    unreviewedPuzzleCount(),
+    isHistoryExhausted()
+  ]);
+  // Advisory count from the puzzle dashboard aggregate; cached, and null when
+  // it has never been fetched or Lichess was unreachable.
+  const totalFailures = await fetchTotalFailures();
+
   return {
     stats,
     recentSyncs,
+    puzzlesLoaded,
+    unreviewedPuzzles,
+    historyExhausted,
+    totalFailures,
     lastPuzzleSync: puzzleCursor ? parseInt(puzzleCursor) : null,
     lastGameSync: gameCursor ? parseInt(gameCursor) : null,
     cardBreakdown,

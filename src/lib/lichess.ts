@@ -66,12 +66,27 @@ async function fetchNdjson<T>(
   return items;
 }
 
-export async function fetchPuzzleFailures(
-  since?: number,
+export interface PuzzleActivityPage {
+  /** Every entry scanned, newest first — wins included. */
+  entries: RawPuzzleActivity[];
+  /** Just the losses: the only entries that become cards. */
+  failures: RawPuzzleActivity[];
+}
+
+/**
+ * A window of puzzle activity. The endpoint returns *every* attempt, wins
+ * included, each carrying a full puzzle object, so an unbounded call downloads
+ * far more than it keeps — hence `max`/`before` paging rather than one big pull.
+ * Lichess documents that pair explicitly for pagination.
+ */
+export async function fetchPuzzleActivity(
+  opts: { max?: number; before?: number; since?: number } = {},
   onScan?: (scanned: number) => void
-): Promise<RawPuzzleActivity[]> {
+): Promise<PuzzleActivityPage> {
   const params = new URLSearchParams();
-  if (since) params.set('since', String(since));
+  if (opts.max) params.set('max', String(opts.max));
+  if (opts.before) params.set('before', String(opts.before));
+  if (opts.since) params.set('since', String(opts.since));
 
   const entries = await fetchNdjson<RawPuzzleActivity>(
     `${BASE}/api/puzzle/activity?${params}`,
@@ -80,7 +95,30 @@ export async function fetchPuzzleFailures(
     (_item, scanned) => onScan?.(scanned)
   );
 
-  return entries.filter((e) => !e.win);
+  return { entries, failures: entries.filter((e) => !e.win) };
+}
+
+// Lichess predates any user account, so a window this wide is effectively
+// "lifetime" for the dashboard aggregate. `days` has a documented minimum of 1
+// and no maximum.
+const LICHESS_EPOCH = Date.UTC(2010, 0, 1);
+
+export function daysSinceLichessEpoch(): number {
+  return Math.ceil((Date.now() - LICHESS_EPOCH) / 86_400_000);
+}
+
+/**
+ * Aggregate puzzle results over the last `days`. `global.nb - global.firstWins`
+ * is the number of puzzles failed on the first attempt — the closest thing the
+ * API offers to a total failure count, and one small JSON call rather than a
+ * full scan of the activity stream.
+ */
+export async function fetchPuzzleDashboard(days: number): Promise<PuzzleDashboard> {
+  const res = await fetch(`${BASE}/api/puzzle/dashboard/${days}`, {
+    headers: await authHeaders()
+  });
+  if (!res.ok) throw new Error(`Puzzle dashboard: ${res.status}`);
+  return res.json();
 }
 
 export async function fetchAnalyzedGames(
@@ -128,6 +166,20 @@ export interface RawPuzzleActivity {
     fen: string;
     lastMove: string;
   };
+}
+
+export interface PuzzlePerformance {
+  nb: number;
+  firstWins: number;
+  replayWins: number;
+  puzzleRatingAvg: number;
+  performance: number;
+}
+
+export interface PuzzleDashboard {
+  days: number;
+  global: PuzzlePerformance;
+  themes: Record<string, { theme: string; results: PuzzlePerformance }>;
 }
 
 export interface RawGame {
