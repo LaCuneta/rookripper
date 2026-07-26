@@ -8,7 +8,9 @@
     "postbuild": "node -e \"require('fs').copyFileSync('build/404.html','build/index.html')\"",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",
@@ -16,12 +18,14 @@
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/node": "^26.1.1",
     "@vite-pwa/sveltekit": "^1.0.0",
+    "fake-indexeddb": "^6.2.5",
     "sharp": "^0.34.5",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "tslib": "^2.0.0",
     "typescript": "^5.0.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "chessground": "^9.1.1",

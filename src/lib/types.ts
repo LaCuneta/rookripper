@@ -36,9 +36,21 @@ export interface Card {
   added_at: number;
 }
 
+// A review event. `event_id` is the cross-device merge key: `id` is a local
+// auto-increment that two devices would collide on, and `card_id` is likewise
+// device-local, so the Lichess identity (puzzle id, or game id + move number) is
+// denormalised onto every row. That lets an event pulled from another device be
+// stored before the card it refers to exists locally — an orphan carries
+// `card_id: null` until the next Lichess sync creates its card.
 export interface ReviewLog {
   id?: number;
-  card_id: number;
+  event_id: string; // UUID, client-generated at insert
+  device_id: string; // UUID of the device that recorded the review
+  card_id: number; // ORPHAN_CARD_ID while the local card doesn't exist yet
+  source: CardSource;
+  lichess_puzzle_id: string | null; // set iff source === 'puzzle'
+  lichess_game_id: string | null; // set iff source === 'game'
+  game_move_number: number | null; // set iff source === 'game'
   reviewed_at: number;
   rating: number;
   user_move: string | null;
@@ -46,6 +58,20 @@ export interface ReviewLog {
   centipawn_loss: number | null;
   duration_ms: number | null;
 }
+
+/** The SRS fields of a card — everything replay reproduces from its events. */
+export type CardProjection = Pick<
+  Card,
+  | 'due'
+  | 'stability'
+  | 'difficulty'
+  | 'elapsed_days'
+  | 'scheduled_days'
+  | 'reps'
+  | 'lapses'
+  | 'state'
+  | 'last_reviewed_at'
+>;
 
 export interface MetaRow {
   key: string;
@@ -76,6 +102,9 @@ export interface Backup {
   app: 'rookripper';
   exportedAt: number;
   cards: Card[];
-  reviewLog: ReviewLog[];
+  reviewLog: BackupReviewLog[];
   meta: Record<string, string>;
 }
+
+/** A reviewLog row as found in a backup: pre-v2 dumps have no sync fields. */
+export type BackupReviewLog = Partial<ReviewLog> & Pick<ReviewLog, 'reviewed_at' | 'rating'>;
