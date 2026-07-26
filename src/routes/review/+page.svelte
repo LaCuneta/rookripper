@@ -9,6 +9,7 @@
   import type { Card } from '$lib/types';
   import { loadSettings } from '$lib/settings';
   import { applyReview } from '$lib/srs';
+  import { markReviewed } from '$lib/driveSync';
   import { evaluateMove } from '$lib/cloudEval';
   import { playMove, playCapture, playWrong } from '$lib/sound';
 
@@ -311,6 +312,9 @@
     if (pendingRating === null || card.id === undefined) return;
     countdown = null;
     await applyReview(card.id, pendingRating, null, true, null, Date.now() - startedAt);
+    // Queues a debounced Drive flush; never awaited, so a slow or failing
+    // network can't hold up the next card.
+    void markReviewed();
     window.location.reload();
   }
 

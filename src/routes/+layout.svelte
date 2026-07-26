@@ -4,12 +4,27 @@
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import { requestPersistentStorage } from '$lib/db';
+  import { isGoogleConnected } from '$lib/googleAuth';
+  import { initSyncStatus, installSyncTriggers, syncOnStart } from '$lib/driveSync';
 
   let { data, children }: { data: { configured: boolean }; children: Snippet } = $props();
 
   // Ask the browser to keep our IndexedDB data durable (reduces eviction risk).
   onMount(() => {
-    if (data.configured) requestPersistentStorage();
+    if (!data.configured) return;
+    requestPersistentStorage();
+
+    // Pull on start so a device picks up whatever its peers did while it was
+    // closed; the triggers handle flushing from then on.
+    let teardown: (() => void) | undefined;
+    void (async () => {
+      await initSyncStatus();
+      if (await isGoogleConnected()) {
+        teardown = installSyncTriggers();
+        void syncOnStart();
+      }
+    })();
+    return () => teardown?.();
   });
 
   let menuOpen = $state(false);

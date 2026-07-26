@@ -11,11 +11,22 @@ npm run dev          # dev server on http://localhost:5173
 npm run build        # static production build → build/ (SPA)
 npm run preview      # preview production build
 npm run check        # svelte-check type-check (run after svelte-kit sync)
+npm test             # vitest (tests/) — SRS replay, merge, migration
+npm run test:watch   # vitest in watch mode
 node_modules/.bin/svelte-kit sync   # regenerate .svelte-kit/ (needed after first clone)
 node_modules/.bin/vite build        # if npm run build fails due to PATH
 ```
 
-There are no automated tests yet. Type-checking is the primary correctness gate: `npm run check`.
+Tests (`tests/`) run under vitest against a real Dexie database backed by
+`fake-indexeddb`, so they exercise the production code paths rather than mocks.
+UI components are not tested; type-checking (`npm run check`) remains the gate
+there.
+
+The **replay-fidelity test** (`tests/replay.test.ts`) is the important one: it
+simulates months of study through the real `applyReview()` and asserts that
+replaying the resulting `reviewLog` reproduces the stored card state exactly.
+Cross-device sync depends on that equality, so this test gates any change to
+scheduling, and `ts-fsrs` should not be upgraded without re-running it.
 
 ## Architecture
 
@@ -161,6 +172,79 @@ Client `+page.ts` load computes everything from Dexie. The dashboard shows:
 - **Card breakdown** table — counts by `source × state`.
 - **30-day review forecast** — bar chart of scheduled non-new cards per calendar day.
 - **Data & backup** — export/import of SRS state, with a durability warning.
+
+### Cross-device sync (Google Drive)
+
+Serverless sync of review progress through the Drive **appData** folder — a
+hidden per-app space the user's other apps can't see. Design doc: `GDRIVE_PLAN.md`.
+
+**Only review events sync.** Lichess is the source of truth for puzzle/game
+content, which is large and re-fetchable, so no FEN/PGN/solution ever leaves the
+device. `cards` is a **local projection**: every device rebuilds it by replaying
+the merged event log, because FSRS scheduling is a deterministic fold over
+`(rating, timestamp)` pairs. Neither access token is ever written to the file.
+
+| Module | Role |
+|---|---|
+| `googleAuth.ts` | GIS token flow (popup, no secret, no redirect URI). Scope `drive.appdata` only — classified non-sensitive, so publishing needs no verification review. Silent re-issue via `prompt: ''`. |
+| `drive.ts` | appData REST: find / download / resumable upload / delete. |
+| `syncFile.ts` | The wire format, `mergeSyncFile()`, and `reconcileMeta()`. |
+| `driveSync.ts` | Orchestration: pull, push, batched flush, retry, status. |
+| `syncActivity.ts` | User-visible log of what sync fetched, resolved and sent. Not the Dexie `syncLog` table, which is for Lichess imports. |
+| `replay.ts` | `replayEvents()`, `rebuildAllCards()`, `bindOrphanEvents()`. |
+
+**Events are addressed by Lichess identity, never `card_id`** — that's a local
+auto-increment which differs per device for the same puzzle. The identity
+(`lichess_puzzle_id`, or `lichess_game_id` + `game_move_number`) is denormalised
+onto every `reviewLog` row, which is what lets an event arrive *before* its card
+exists: such rows are stored with `card_id = ORPHAN_CARD_ID` (`-1`, since
+IndexedDB won't index `null`) and are attached by `bindOrphanEvents()` after the
+next Lichess sync creates the card.
+
+Dedup is by `event_id` (client-generated UUID, unique index), so merging is
+idempotent and order-independent.
+
+**Replay respects `original_failure_at`** as a reset boundary. `syncPuzzles()`
+resets a re-failed puzzle to `new`, a state change that leaves no trace in
+`reviewLog`; without the boundary, replay would resurrect the discarded
+schedule. The value comes from Lichess, so every device derives the same cut.
+
+**Meta reconciliation** is by rule, not overwrite: Lichess cursors take the max
+(they're per-account, not per-device), `extra_new_today` takes the later date or
+the larger bonus within a date, and `new_cards_per_day` is last-writer-wins via
+a `_updated_at` stamp — write it with `setSyncedMeta()`, not `setMeta()`.
+
+**The daily new-card cap counts from `reviewLog`**, not from `cards.reps === 1`:
+distinct card identities whose earliest event is today. That makes the cap
+inherently shared once events merge, and means two devices that race on the same
+new card burn one slot rather than two.
+
+Drive has no conditional write, so `push()` re-checks the file `version` and
+merges any peer write before overwriting. Pull skips the download entirely when
+`version` is unchanged.
+
+**Batch state is persisted** (`drive_pending_count` / `drive_pending_since` in
+`meta`), not held in module scope. The review page calls
+`window.location.reload()` after every card, which would otherwise reset the
+counter and destroy the debounce timer on each review — making every card its
+own full-file upload. `flush(reason, force)` uploads when the batch is ripe (10
+reviews or 2 minutes); `force` is used by "Sync now" and by the tab-hidden and
+page-close triggers, where the session may be ending.
+
+`syncOnStart()` is throttled (`drive_last_pull_at`) and defers to the batching
+policy instead of forcing a push — with reload-per-card, "app start" fires once
+per review, and an unconditional pull-and-push there is a Drive round trip per
+card.
+
+**Drive's `version` in an upload response is stale.** It bumps again when the
+resumable session finalises, so `push()` re-reads the settled version with a
+`findSyncFile()` call. Trusting the response value makes every pull re-download
+a file we just wrote, and makes the next push mistake our own write for a peer's.
+
+**Only 401 — and 403 with an auth-specific `reason` — means "reconnect".** Other
+403s (Drive API not enabled, rate limit, quota) are real failures that
+re-authorising cannot fix, and `drive.ts` surfaces Google's own error message
+rather than a generic one.
 
 ### Durability
 

@@ -4,6 +4,7 @@ import { parseSan } from 'chessops/san';
 import { makeUci } from 'chessops/util';
 import { db, getMeta, setMeta } from './db';
 import { fetchPuzzleFailures, fetchAnalyzedGames, type RawGame } from './lichess';
+import { bindOrphanEvents } from './replay';
 import type { Card } from './types';
 
 // Browser-side sync. Formerly src/lib/server/sync.ts — chessops already runs in
@@ -258,5 +259,7 @@ export async function syncAll(onProgress?: ProgressFn): Promise<{
   games: { fetched: number; added: number };
 }> {
   const [puzzles, games] = await Promise.all([syncPuzzles(onProgress), syncGames(onProgress)]);
+  // Newly created cards may already have review history pulled from a peer.
+  await bindOrphanEvents();
   return { puzzles, games };
 }

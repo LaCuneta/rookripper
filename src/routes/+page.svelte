@@ -10,6 +10,8 @@
     importData,
     deleteAllProgress
   } from '$lib/export';
+  import { isGoogleConnected } from '$lib/googleAuth';
+  import { deleteRemoteFile } from '$lib/driveSync';
   import Tip from '$lib/components/Tip.svelte';
 
   const STATE_HELP: Record<string, string> = {
@@ -124,9 +126,17 @@
 
   async function deleteProgress() {
     const total = grandTotal;
+    // With Drive connected a local-only delete would be undone by the next
+    // pull, so the remote file has to go too — which also wipes the history
+    // other devices sync from. Say so before doing it.
+    const synced = await isGoogleConnected();
     const warning =
       `Permanently delete all ${total} card${total === 1 ? '' : 's'} and your entire review history?\n\n` +
       `This cannot be undone. Export a backup first if you might want this back.\n\n` +
+      (synced
+        ? `Google Drive is connected, so the synced history is deleted too. Other ` +
+          `devices lose it the next time they sync.\n\n`
+        : '') +
       `You'll stay signed in to Lichess, and sync cursors reset so a fresh sync ` +
       `can pull your failures again from scratch.`;
     if (!confirm(warning)) return;
@@ -135,6 +145,7 @@
     backupMsg = '';
     try {
       const res = await deleteAllProgress();
+      if (synced) await deleteRemoteFile();
       backupMsg = `Deleted ${res.cards} cards and ${res.reviewLog} reviews.`;
       window.location.reload();
     } catch (err) {
